@@ -1,0 +1,13 @@
+{
+  "name": "利益商品管理ツール",
+  "short_name": "利益管理",
+  "description": "Amazon商品のKeepaデータ管理・利益計算ツール",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1a73e8",
+  "icons": [
+    { "src": "icon-192.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "icon-512.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}
