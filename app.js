@@ -753,7 +753,7 @@ function renderSettingsTab() {
     body.innerHTML=`<div class="settings-section"><h4 class="settings-label">Keepa APIキー</h4><p class="settings-desc"><a href="https://keepa.com/#!api" target="_blank">取得はこちら</a></p>
       <div class="settings-current"><span class="settings-current-label">現在:</span><span class="settings-current-value" style="color:${hasKey?'var(--success)':'var(--error)'}">${hasKey?masked:'未設定'}</span></div>
       <div class="field-group" style="margin-top:12px"><label>新しいAPIキー</label><input type="text" id="settingsApiKey" placeholder="APIキーを貼り付け..."></div>
-      <div class="settings-actions"><button class="btn-primary" onclick="saveApiKey()"><span class="material-symbols-outlined">save</span>保存</button>${d.hasKey?'<button class="btn-danger" onclick="deleteApiKey()"><span class="material-symbols-outlined">delete</span>削除</button>':''}</div></div>`;
+      <div class="settings-actions"><button class="btn-primary" onclick="saveApiKey()"><span class="material-symbols-outlined">save</span>保存</button>${hasKey?'<button class="btn-danger" onclick="deleteApiKey()"><span class="material-symbols-outlined">delete</span>削除</button>':''}</div></div>`;
   } else if(currentSettingsTab==='shipping') {
     loadSettings();
     const items=(appSettings.shippingMethods||[]).map((m,i)=>`<div class="settings-list-item"><input class="name-input" value="${escA(m.name)}"><input class="num-input" type="number" value="${m.cost}">円<button class="btn-icon btn-delete" onclick="this.closest('.settings-list-item').remove()"><span class="material-symbols-outlined">close</span></button></div>`).join('');

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'profit-tool-v3';
+const CACHE_NAME = 'profit-tool-v4';
 const ASSETS = [
   './',
   './index.html',
