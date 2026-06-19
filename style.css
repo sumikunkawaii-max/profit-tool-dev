@@ -1680,3 +1680,31 @@ body {
     grid-template-columns: 1fr;
   }
 }
+
+/* === ロット管理 === */
+.sku-actions { display: flex; gap: 4px; align-items: center; margin-top: 2px; }
+.lot-summary { cursor: pointer; display: flex; flex-direction: column; gap: 2px; }
+.lot-mini { display: flex; gap: 4px; align-items: center; font-size: 10px; padding: 1px 4px; background: var(--surface-container, #f5f5f5); border-radius: 3px; }
+.lot-mini-sku { font-family: monospace; color: #555; }
+.lot-mini-qty { color: #888; }
+.lot-add-btn { background: none; border: 1px dashed #ccc; border-radius: 4px; padding: 1px 6px; font-size: 10px; color: #666; cursor: pointer; margin-top: 2px; }
+.lot-add-btn:hover { border-color: #999; color: #333; }
+
+.lot-manager { display: flex; flex-direction: column; gap: 12px; }
+.lot-info { font-size: 13px; color: #666; padding: 8px 12px; background: var(--surface-container, #f5f5f5); border-radius: 8px; }
+.lot-list { display: flex; flex-direction: column; gap: 8px; }
+.lot-empty { text-align: center; color: #999; font-size: 13px; padding: 20px; }
+
+.lot-card { border: 1px solid var(--outline, #ddd); border-radius: 8px; padding: 12px; }
+.lot-card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.lot-number { font-weight: 600; font-size: 13px; }
+.lot-profit { font-size: 12px; font-weight: 600; }
+.lot-profit.positive { color: #16a34a; }
+.lot-profit.negative { color: #dc2626; }
+
+.lot-fields { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.lot-field label { display: block; font-size: 11px; color: #888; margin-bottom: 2px; }
+.lot-field input, .lot-field select { width: 100%; padding: 4px 8px; border: 1px solid var(--outline, #ddd); border-radius: 6px; font-size: 12px; }
+
+.lot-add-big-btn { display: flex; align-items: center; justify-content: center; gap: 4px; padding: 10px; border: 1px dashed #ccc; border-radius: 8px; background: none; cursor: pointer; font-size: 13px; color: #666; width: 100%; }
+.lot-add-big-btn:hover { border-color: #999; color: #333; background: var(--surface-container, #f5f5f5); }

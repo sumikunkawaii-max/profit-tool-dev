@@ -145,7 +145,7 @@ function parseKeepaProduct(product) {
 
 const USER_FIELDS = ['supplier','supplierPlatform','supplierShop','supplierUrl','listingPrice','lowerPrice',
   'purchasePrice','points','purchasePriceWithPoints','quantity','shippingMethod','shippingCost',
-  'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes','rivals','sku'];
+  'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes','rivals','sku','lots'];
 
 // === 初期化 ===
 document.addEventListener('DOMContentLoaded', () => {
@@ -199,7 +199,7 @@ async function handleFetch() {
   } else {
     const np = { ...keepaData };
     USER_FIELDS.forEach(f => { np[f] = null; });
-    np.supplier = ''; np.notes = ''; np.commissionRate = 10; np.priceReductionEnabled = false; np.rivals = []; np.sku = '';
+    np.supplier = ''; np.notes = ''; np.commissionRate = 10; np.priceReductionEnabled = false; np.rivals = []; np.sku = ''; np.lots = [];
     np.lastUpdated = now; np.createdAt = now;
     products.push(np);
     showToast('商品を追加しました');
@@ -331,7 +331,27 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'image': return p.imageUrl ? `<img class="product-thumb" src="${esc(p.imageUrl)}" loading="lazy" onclick="openDetail('${p.asin}')" onerror="this.style.display='none'">` : `<div class="product-thumb-placeholder" onclick="openDetail('${p.asin}')"></div>`;
     case 'title': return `<a class="product-name" href="https://www.amazon.co.jp/dp/${p.asin}" target="_blank" rel="noopener">${esc(p.title)}</a>`;
     case 'asin': return `<span class="asin-copy" onclick="copyAsin('${p.asin}',this)" title="コピー">${p.asin}</span>`;
-    case 'sku': return `<div class="sku-cell"><input class="inline-input" type="text" value="${escA(p.sku||'')}" placeholder="SKUを入力" data-asin="${p.asin}" data-field="sku" onchange="saveInline(this)" title="セラーセントラルの在庫管理で確認できます">${!p.sku ? `<a class="sku-help" href="https://sellercentral.amazon.co.jp/inventory" target="_blank" rel="noopener" title="セラーセントラルで確認">SCで確認</a>` : ''}</div>`;
+    case 'sku': {
+      const lots = p.lots || [];
+      if (lots.length === 0) {
+        // ロットがない場合: 従来のSKU入力 + ロット追加ボタン
+        return `<div class="sku-cell">
+          <input class="inline-input" type="text" value="${escA(p.sku||'')}" placeholder="SKU" data-asin="${p.asin}" data-field="sku" onchange="saveInline(this)" title="セラーセントラルの在庫管理で確認できます">
+          <div class="sku-actions">
+            ${!p.sku ? `<a class="sku-help" href="https://sellercentral.amazon.co.jp/inventory" target="_blank" rel="noopener">SCで確認</a>` : ''}
+            <button class="lot-add-btn" onclick="openLotManager('${p.asin}')" title="複数ロット管理">+ ロット</button>
+          </div>
+        </div>`;
+      } else {
+        // ロットがある場合: ロット一覧の簡易表示
+        return `<div class="sku-cell">
+          <div class="lot-summary" onclick="openLotManager('${p.asin}')">
+            ${lots.map(l => `<div class="lot-mini"><span class="lot-mini-sku">${escA(l.sku||'?')}</span><span class="lot-mini-qty">${l.quantity||0}個</span></div>`).join('')}
+          </div>
+          <button class="lot-add-btn" onclick="openLotManager('${p.asin}')">編集 (${lots.length}ロット)</button>
+        </div>`;
+      }
+    }
     case 'supplier': {
       const pf = p.supplierPlatform || '';
       const shop = p.supplierShop || '';
@@ -369,7 +389,22 @@ function renderCellContent(colId, p, shippingOpts) {
       return `<div class="stacked-cell ${cls}">${sugBadge}<select class="inline-select" data-asin="${p.asin}" data-field="shippingMethod" onchange="saveInline(this)"><option value="">--</option>${shippingOpts}</select><input class="inline-input inline-input-num" type="number" value="${p.shippingCost??''}" data-asin="${p.asin}" data-field="shippingCost" onchange="saveInline(this)" placeholder="¥0"></div>`;
     }
     case 'quantity': return `<input class="inline-input inline-input-num" type="number" value="${p.quantity??''}" placeholder="個" data-asin="${p.asin}" data-field="quantity" onchange="saveInline(this)">`;
-    case 'profit': { const cls = pr ? (pr.profit >= 0 ? 'positive' : 'negative') : ''; const html = pr ? `¥${pr.profit.toLocaleString()}<br><span class="cell-profit-sub">${pr.profitRate}%</span>` : '<span class="cell-null">-</span>'; return `<div class="cell-profit ${cls}" id="profit-${p.asin}">${html}</div>`; }
+    case 'profit': {
+      const lots = p.lots || [];
+      if (lots.length > 0) {
+        // ロットがある場合: 各ロットの利益を合算表示
+        const profits = lots.map(l => calcLotProfit(p, l)).filter(r => r !== null);
+        if (profits.length === 0) return `<div class="cell-profit" id="profit-${p.asin}"><span class="cell-null">-</span></div>`;
+        const totalProfit = profits.reduce((sum, r) => sum + r.profit, 0);
+        const avgProfitRate = (profits.reduce((sum, r) => sum + parseFloat(r.profitRate), 0) / profits.length).toFixed(1);
+        const cls = totalProfit >= 0 ? 'positive' : 'negative';
+        return `<div class="cell-profit ${cls}" id="profit-${p.asin}">¥${totalProfit.toLocaleString()}<br><span class="cell-profit-sub">${avgProfitRate}% (${lots.length}ロット)</span></div>`;
+      }
+      // 従来の計算
+      const cls = pr ? (pr.profit >= 0 ? 'positive' : 'negative') : '';
+      const html = pr ? `¥${pr.profit.toLocaleString()}<br><span class="cell-profit-sub">${pr.profitRate}%</span>` : '<span class="cell-null">-</span>';
+      return `<div class="cell-profit ${cls}" id="profit-${p.asin}">${html}</div>`;
+    }
     case 'size': return formatSizeDisplay(p);
     case 'brand': return `<span class="cell-brand">${formatBrand(p.brand)}</span>`;
     case 'category': return `<span class="cell-category">${formatCategory(p.category)}</span>`;
@@ -910,6 +945,137 @@ function openDetail(asin) {
 }
 function closeModal(e){if(e&&e.target!==e.currentTarget)return;document.getElementById('modalOverlay').classList.remove('active');}
 
+// === ロット管理 ===
+function calcLotProfit(product, lot) {
+  const listing = product.listingPrice;
+  const cost = lot.purchasePrice ? (lot.purchasePrice - (lot.points || 0)) : null;
+  const ship = lot.shippingCost || 0;
+  const rate = product.commissionRate || 10;
+  if (!listing || !cost) return null;
+  const commission = Math.round(listing * rate / 100);
+  const profit = listing - cost - ship - commission;
+  return { profit, profitRate: ((profit / listing) * 100).toFixed(1) };
+}
+
+function openLotManager(asin) {
+  const p = products.find(x => x.asin === asin);
+  if (!p) return;
+  if (!p.lots) p.lots = [];
+
+  document.getElementById('modalTitle').textContent = 'ロット管理 - ' + (p.title || '').substring(0, 30);
+
+  const shippingOpts = (appSettings.shippingMethods || []).map(m => `<option value="${esc(m.name)}">${esc(m.name)}</option>`).join('');
+
+  let lotsHtml = '';
+  if (p.lots.length === 0) {
+    // 既存のSKU/仕入れ値があればロット1として移行
+    if (p.sku || p.purchasePrice) {
+      p.lots.push({
+        id: Date.now(),
+        sku: p.sku || '',
+        purchasePrice: p.purchasePrice || null,
+        points: p.points || 0,
+        quantity: p.quantity || 1,
+        shippingMethod: p.shippingMethod || '',
+        shippingCost: p.shippingCost || 0,
+        memo: ''
+      });
+      saveProductsToStorage();
+    }
+  }
+
+  p.lots.forEach((lot, i) => {
+    const profit = calcLotProfit(p, lot);
+    const profitHtml = profit ? `<span class="lot-profit ${profit.profit >= 0 ? 'positive' : 'negative'}">利益: ¥${profit.profit.toLocaleString()} (${profit.profitRate}%)</span>` : '';
+
+    lotsHtml += `<div class="lot-card" data-lot-id="${lot.id}">
+      <div class="lot-card-header">
+        <span class="lot-number">ロット${i + 1}</span>
+        ${profitHtml}
+        <button class="btn-icon btn-delete" onclick="deleteLot('${p.asin}', ${lot.id})" title="削除"><span class="material-symbols-outlined">close</span></button>
+      </div>
+      <div class="lot-fields">
+        <div class="lot-field"><label>SKU</label><input type="text" value="${escA(lot.sku||'')}" onchange="updateLot('${p.asin}',${lot.id},'sku',this.value)"></div>
+        <div class="lot-field"><label>仕入れ値</label><input type="number" value="${lot.purchasePrice||''}" onchange="updateLot('${p.asin}',${lot.id},'purchasePrice',Number(this.value))"></div>
+        <div class="lot-field"><label>ポイント</label><input type="number" value="${lot.points||''}" onchange="updateLot('${p.asin}',${lot.id},'points',Number(this.value))"></div>
+        <div class="lot-field"><label>個数</label><input type="number" value="${lot.quantity||''}" onchange="updateLot('${p.asin}',${lot.id},'quantity',Number(this.value))"></div>
+        <div class="lot-field"><label>配送方法</label><select onchange="updateLotShipping('${p.asin}',${lot.id},this.value)"><option value="">--</option>${shippingOpts}</select></div>
+        <div class="lot-field"><label>送料</label><input type="number" value="${lot.shippingCost||''}" onchange="updateLot('${p.asin}',${lot.id},'shippingCost',Number(this.value))"></div>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="lot-manager">
+      <div class="lot-info">出品価格: ¥${(p.listingPrice||0).toLocaleString()} / 手数料: ${p.commissionRate||10}%</div>
+      <div class="lot-list">${lotsHtml || '<p class="lot-empty">ロットがありません</p>'}</div>
+      <button class="lot-add-big-btn" onclick="addLot('${p.asin}')"><span class="material-symbols-outlined">add</span> 新しいロットを追加</button>
+    </div>`;
+
+  // 配送方法のselected設定
+  p.lots.forEach(lot => {
+    if (lot.shippingMethod) {
+      const card = document.querySelector(`.lot-card[data-lot-id="${lot.id}"] select`);
+      if (card) card.value = lot.shippingMethod;
+    }
+  });
+
+  document.getElementById('modalOverlay').classList.add('active');
+}
+
+function addLot(asin) {
+  const p = products.find(x => x.asin === asin);
+  if (!p) return;
+  if (!p.lots) p.lots = [];
+  p.lots.push({
+    id: Date.now(),
+    sku: '',
+    purchasePrice: null,
+    points: 0,
+    quantity: 1,
+    shippingMethod: '',
+    shippingCost: 0,
+    memo: ''
+  });
+  saveProductsToStorage();
+  openLotManager(asin);
+}
+
+function deleteLot(asin, lotId) {
+  if (!confirm('このロットを削除しますか？')) return;
+  const p = products.find(x => x.asin === asin);
+  if (!p || !p.lots) return;
+  p.lots = p.lots.filter(l => l.id !== lotId);
+  saveProductsToStorage();
+  openLotManager(asin);
+  renderAll();
+}
+
+function updateLot(asin, lotId, field, value) {
+  const p = products.find(x => x.asin === asin);
+  if (!p || !p.lots) return;
+  const lot = p.lots.find(l => l.id === lotId);
+  if (lot) {
+    lot[field] = value;
+    saveProductsToStorage();
+    // 利益表示を更新するためモーダル再描画
+    openLotManager(asin);
+  }
+}
+
+function updateLotShipping(asin, lotId, methodName) {
+  const p = products.find(x => x.asin === asin);
+  if (!p || !p.lots) return;
+  const lot = p.lots.find(l => l.id === lotId);
+  if (lot) {
+    lot.shippingMethod = methodName;
+    const sm = (appSettings.shippingMethods || []).find(m => m.name === methodName);
+    lot.shippingCost = sm ? sm.cost : 0;
+    saveProductsToStorage();
+    openLotManager(asin);
+  }
+}
+
 // === 設定モーダル ===
 let currentSettingsTab='api';
 function openSettings(){document.getElementById('settingsOverlay').classList.add('active');renderSettingsTab();}
@@ -1336,29 +1502,48 @@ function applyAutoPricing() {
 
 // === セラーセントラル用CSV出力 ===
 function exportSellerCentralCsv() {
-  // SKUと出品価格が設定された商品のみ対象
-  const targets = products.filter(p => p.sku && p.listingPrice);
-  if (!targets.length) { showToast('SKUと出品価格が設定された商品がありません', 'error'); return; }
-
-  // タブ区切りテキスト（セラーセントラル形式）
-  const header = 'sku\tprice\tminimum-price\tmaximum-price\tquantity';
-  const rows = targets.map(p => {
-    const price = p.listingPrice;
-    const minPrice = p.lowerPrice || '';
-    const maxPrice = '';
-    const qty = p.quantity || '';
-    return `${p.sku}\t${price}\t${minPrice}\t${maxPrice}\t${qty}`;
+  const rows = [];
+  products.forEach(p => {
+    if (!p.listingPrice) return;
+    const lots = p.lots || [];
+    if (lots.length > 0) {
+      // ロットがある場合: ロットごとに1行
+      lots.forEach(lot => {
+        if (lot.sku) {
+          rows.push({
+            sku: lot.sku,
+            price: p.listingPrice,
+            minPrice: p.lowerPrice || '',
+            maxPrice: '',
+            quantity: lot.quantity || ''
+          });
+        }
+      });
+    } else if (p.sku) {
+      // ロットなし: 従来通り
+      rows.push({
+        sku: p.sku,
+        price: p.listingPrice,
+        minPrice: p.lowerPrice || '',
+        maxPrice: '',
+        quantity: p.quantity || ''
+      });
+    }
   });
 
-  const content = [header, ...rows].join('\n');
+  if (!rows.length) { showToast('SKUと出品価格が設定された商品がありません', 'error'); return; }
+
+  const header = 'sku\tprice\tminimum-price\tmaximum-price\tquantity';
+  const body = rows.map(r => `${r.sku}\t${r.price}\t${r.minPrice}\t${r.maxPrice}\t${r.quantity}`);
+  const content = [header, ...body].join('\n');
   const blob = new Blob([content], { type: 'text/tab-separated-values;charset=utf-8' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = `price-update-${new Date().toISOString().slice(0, 10)}.txt`;
+  a.download = `price-update-${new Date().toISOString().slice(0,10)}.txt`;
   a.click();
   URL.revokeObjectURL(url);
-  showToast(`セラーセントラル用ファイル出力（${targets.length}件）`);
+  showToast(`SC用ファイル出力（${rows.length}件）`);
 }
 
 // === UIヘルパー ===
