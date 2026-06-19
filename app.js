@@ -144,6 +144,80 @@ function parseKeepaProduct(product) {
   };
 }
 
+// === Amazon直接価格取得（Keepaトークン不要） ===
+const CORS_PROXIES = [
+  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+];
+
+async function fetchAmazonPriceDirect(asin) {
+  const amazonUrl = `https://www.amazon.co.jp/dp/${asin}`;
+  for (const proxy of CORS_PROXIES) {
+    try {
+      const res = await fetch(proxy(amazonUrl), { signal: AbortSignal.timeout(15000) });
+      let html = '';
+      if (res.headers.get('content-type')?.includes('json')) {
+        const data = await res.json();
+        html = data.contents || '';
+      } else {
+        html = await res.text();
+      }
+      if (!html) continue;
+
+      // 価格をHTMLからパース（複数パターンに対応）
+      let price = null;
+
+      // パターン1: a-price-whole（現在の主要パターン）
+      const m1 = html.match(/class="a-price-whole">([0-9,]+)/);
+      if (m1) price = parseInt(m1[1].replace(/,/g, ''));
+
+      // パターン2: priceblock
+      if (!price) {
+        const m2 = html.match(/id="priceblock_ourprice"[^>]*>.*?([0-9,]+)/);
+        if (m2) price = parseInt(m2[1].replace(/,/g, ''));
+      }
+
+      // パターン3: a-offscreen内の価格
+      if (!price) {
+        const m3 = html.match(/class="a-offscreen">\s*&yen;\s*([0-9,]+)/);
+        if (m3) price = parseInt(m3[1].replace(/,/g, ''));
+      }
+
+      // パターン4: 円マーク付き
+      if (!price) {
+        const m4 = html.match(/￥([0-9,]+)/);
+        if (m4) price = parseInt(m4[1].replace(/,/g, ''));
+      }
+
+      // 商品名取得
+      let title = null;
+      const titleMatch = html.match(/<title[^>]*>([^<]+)</);
+      if (titleMatch) {
+        title = titleMatch[1].replace(/\s*(\||:|-)\s*Amazon.*$/i, '').trim();
+      }
+      const titleMatch2 = html.match(/id="productTitle"[^>]*>\s*([^<]+)/);
+      if (titleMatch2) title = titleMatch2[1].trim();
+
+      // 画像取得
+      let imageUrl = null;
+      const imgMatch = html.match(/id="landingImage"[^>]*src="([^"]+)"/);
+      if (imgMatch) imageUrl = imgMatch[1];
+      if (!imageUrl) {
+        const imgMatch2 = html.match(/data-old-hires="([^"]+)"/);
+        if (imgMatch2) imageUrl = imgMatch2[1];
+      }
+
+      if (price) {
+        return { asin, title, imageUrl, currentPrice: price, source: 'amazon-direct' };
+      }
+    } catch {
+      // このプロキシ失敗、次を試す
+      continue;
+    }
+  }
+  return { error: 'Amazon価格取得に失敗しました（全プロキシ失敗）' };
+}
+
 const USER_FIELDS = ['supplier','supplierPlatform','supplierShop','supplierUrl','listingPrice','lowerPrice',
   'purchasePrice','points','purchasePriceWithPoints','quantity','shippingMethod','shippingCost',
   'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes','rivals'];
@@ -834,23 +908,45 @@ async function addRivalDialog(parentAsin) {
   }
 
   showLoading(true);
-  const keepaData = await fetchFromKeepa(cleaned);
-  showLoading(false);
-  if (keepaData.error) {
-    showToast(keepaData.error, 'error');
-    return;
+
+  // Keepaが設定済みならKeepaを使う、なければAmazon直接取得
+  let rivalData = null;
+  if (appSettings.keepaApiKey) {
+    const keepaData = await fetchFromKeepa(cleaned);
+    if (!keepaData.error) {
+      rivalData = {
+        asin: cleaned,
+        title: keepaData.title || '',
+        imageUrl: keepaData.imageUrl || null,
+        currentPrice: keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? null,
+        monthlySold: keepaData.monthlySold || keepaData.salesRankDrops90,
+        sellerCount: keepaData.avg90NewSellerCount,
+        lastUpdated: new Date().toISOString()
+      };
+    }
   }
-  // ライバルの現在価格を取得（カート価格 or 新品最安）
-  const rivalPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? null;
-  p.rivals.push({
-    asin: cleaned,
-    title: keepaData.title || '',
-    imageUrl: keepaData.imageUrl || null,
-    currentPrice: rivalPrice,
-    monthlySold: keepaData.monthlySold || keepaData.salesRankDrops90,
-    sellerCount: keepaData.avg90NewSellerCount,
-    lastUpdated: new Date().toISOString()
-  });
+
+  // Keepa失敗またはKeepa未設定 → Amazon直接取得（トークン不要）
+  if (!rivalData) {
+    const directData = await fetchAmazonPriceDirect(cleaned);
+    if (directData.error) {
+      showLoading(false);
+      showToast(directData.error, 'error');
+      return;
+    }
+    rivalData = {
+      asin: cleaned,
+      title: directData.title || '',
+      imageUrl: directData.imageUrl || null,
+      currentPrice: directData.currentPrice,
+      monthlySold: null,
+      sellerCount: null,
+      lastUpdated: new Date().toISOString()
+    };
+  }
+
+  showLoading(false);
+  p.rivals.push(rivalData);
   saveProductsToStorage();
   showToast(`ライバル ${cleaned} を追加しました`);
   renderAll();
@@ -892,15 +988,37 @@ async function updateRivalsForProduct(p) {
   let updated = 0;
   for (const rival of p.rivals) {
     try {
-      const keepaData = await fetchFromKeepa(rival.asin);
-      if (keepaData.error) continue;
-      rival.currentPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? rival.currentPrice;
-      rival.title = keepaData.title || rival.title;
-      rival.imageUrl = keepaData.imageUrl || rival.imageUrl;
-      rival.monthlySold = keepaData.monthlySold || keepaData.salesRankDrops90;
-      rival.sellerCount = keepaData.avg90NewSellerCount;
-      rival.lastUpdated = new Date().toISOString();
-      updated++;
+      let success = false;
+
+      // Keepaが設定済みならKeepaを試す
+      if (appSettings.keepaApiKey) {
+        const keepaData = await fetchFromKeepa(rival.asin);
+        if (!keepaData.error) {
+          rival.currentPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? rival.currentPrice;
+          rival.title = keepaData.title || rival.title;
+          rival.imageUrl = keepaData.imageUrl || rival.imageUrl;
+          rival.monthlySold = keepaData.monthlySold || keepaData.salesRankDrops90;
+          rival.sellerCount = keepaData.avg90NewSellerCount;
+          rival.lastUpdated = new Date().toISOString();
+          success = true;
+        }
+      }
+
+      // Keepa失敗または未設定 → Amazon直接取得（トークン不要）
+      if (!success) {
+        const directData = await fetchAmazonPriceDirect(rival.asin);
+        if (!directData.error && directData.currentPrice) {
+          rival.currentPrice = directData.currentPrice;
+          rival.title = directData.title || rival.title;
+          rival.imageUrl = directData.imageUrl || rival.imageUrl;
+          rival.lastUpdated = new Date().toISOString();
+          success = true;
+        }
+      }
+
+      if (success) updated++;
+      // レート制限対策: 1秒待機
+      await new Promise(r => setTimeout(r, 1000));
     } catch {
       // エラー時はスキップ
     }
