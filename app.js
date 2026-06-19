@@ -398,12 +398,14 @@ function renderCellContent(colId, p, shippingOpts) {
 
       suppliers.forEach((s, i) => {
         const pfClass = getPlatformClass(s.platform);
+        html += `<div class="supplier-entry">`;
         html += `<a class="supplier-row supplier-link" href="${escA(s.url)}" target="_blank" rel="noopener" title="${escA(s.url)}">`;
         html += `<span class="supplier-platform ${pfClass}">${esc(s.platform || 'URL')}</span>`;
         if (s.shop) html += `<span class="supplier-shop-name">${esc(s.shop.substring(0, 20))}</span>`;
         html += `<span class="supplier-open-icon">↗</span>`;
         html += `</a>`;
-        html += `<button class="supplier-remove-btn" onclick="event.stopPropagation();removeSupplier('${p.asin}',${i})" title="削除">x</button>`;
+        html += `<button class="supplier-remove-btn" onclick="removeSupplier('${p.asin}',${i})" title="削除">x</button>`;
+        html += `</div>`;
       });
 
       // 一括で開くボタン（2件以上ある場合）
@@ -411,9 +413,9 @@ function renderCellContent(colId, p, shippingOpts) {
         html += `<button class="supplier-bulk-open" onclick="openAllSuppliers('${p.asin}')" title="全ての仕入先を開く">全て開く (${suppliers.length}件)</button>`;
       }
 
-      // URL入力欄（Enter or ペーストで追加）
+      // URL入力欄（ペーストで自動追加、Enterでも追加）
       html += `<div class="supplier-add-row">`;
-      html += `<input class="supplier-add-input" type="text" placeholder="URLを貼り付け" data-asin="${p.asin}" onkeydown="if(event.key==='Enter')addSupplier(this)" onpaste="setTimeout(()=>addSupplier(this),100)">`;
+      html += `<input class="supplier-add-input" type="url" placeholder="+ URLを貼り付けて追加" data-asin="${p.asin}" onkeydown="if(event.key==='Enter'){event.preventDefault();addSupplier(this)}" onpaste="setTimeout(()=>addSupplier(this),100)">`;
       html += `</div>`;
 
       html += '</div>';
@@ -736,27 +738,50 @@ function extractShopName(url) {
 
 // === 仕入先URL自動判定 ===
 const SUPPLIER_PATTERNS = [
-  { pattern: /rakuten\.co\.jp/, platform: '楽天', shopExtract: url => { const m = url.match(/rakuten\.co\.jp\/([^/?]+)/); return m ? m[1] : null; } },
-  { pattern: /auctions\.yahoo\.co\.jp/, platform: 'ヤフオク', shopExtract: url => { const m = url.match(/auction\/([a-z0-9]+)/i); return m ? 'オークション ' + m[1] : null; } },
-  { pattern: /shopping\.yahoo\.co\.jp/, platform: 'Yahoo', shopExtract: url => { const m = url.match(/yahoo\.co\.jp\/([^/?]+)/); return m ? m[1] : null; } },
-  { pattern: /paypaymall\.yahoo\.co\.jp/, platform: 'Yahoo', shopExtract: url => { const m = url.match(/yahoo\.co\.jp\/store\/([^/?]+)/); return m ? m[1] : null; } },
+  { pattern: /rakuten\.co\.jp/, platform: '楽天', shopExtract: url => { const m = url.match(/rakuten\.co\.jp\/([^/?]+)/); return m ? formatShopId(m[1]) : null; } },
+  { pattern: /auctions\.yahoo\.co\.jp/, platform: 'ヤフオク', shopExtract: url => { const m = url.match(/auction\/([a-z0-9]+)/i); return m ? m[1] : null; } },
+  { pattern: /shopping\.yahoo\.co\.jp/, platform: 'Yahoo', shopExtract: url => { const m = url.match(/yahoo\.co\.jp\/([^/?]+)/); return m ? formatShopId(m[1]) : null; } },
+  { pattern: /paypaymall\.yahoo\.co\.jp/, platform: 'Yahoo', shopExtract: url => { const m = url.match(/yahoo\.co\.jp\/store\/([^/?]+)/); return m ? formatShopId(m[1]) : null; } },
   { pattern: /mercari\.com/, platform: 'メルカリ', shopExtract: url => { const m = url.match(/\/item\/(m[0-9]+)/); return m ? m[1] : null; } },
   { pattern: /amazon\.co\.jp/, platform: 'Amazon', shopExtract: url => { const m = url.match(/\/dp\/([A-Z0-9]{10})/); return m ? m[1] : null; } },
-  { pattern: /qoo10\.jp/, platform: 'Qoo10', shopExtract: url => { const m = url.match(/qoo10\.jp\/([^/?]+)/); return m ? m[1] : null; } },
+  { pattern: /qoo10\.jp/, platform: 'Qoo10', shopExtract: url => { const m = url.match(/qoo10\.jp\/([^/?]+)/); return m ? formatShopId(m[1]) : null; } },
+  { pattern: /yodobashi\.com/, platform: 'ヨドバシ', shopExtract: () => 'yodobashi' },
+  { pattern: /biccamera\.com/, platform: 'ビックカメラ', shopExtract: () => 'biccamera' },
+  { pattern: /joshinweb\.jp/, platform: 'Joshin', shopExtract: () => 'joshin' },
+  { pattern: /edion\.com/, platform: 'エディオン', shopExtract: () => 'edion' },
+  { pattern: /nojima\.co\.jp/, platform: 'ノジマ', shopExtract: () => 'nojima' },
+  { pattern: /sofmap\.com/, platform: 'ソフマップ', shopExtract: () => 'sofmap' },
+  { pattern: /lohaco\.jp/, platform: 'LOHACO', shopExtract: () => 'lohaco' },
+  { pattern: /monotaro\.com/, platform: 'モノタロウ', shopExtract: () => 'monotaro' },
 ];
+
+// ショップIDを読みやすい名前に変換
+const KNOWN_SHOPS = {
+  'hands-net':'ハンズ', 'rakuten24':'楽天24', 'book':'楽天ブックス', 'biccamera':'ビックカメラ',
+  'kojima':'コジマ', 'edion':'エディオン', 'auc-pcones':'PCワンズ', 'dtc':'DTC',
+  'soukai':'爽快ドラッグ', 'kenkocom':'ケンコーコム', 'sundrug':'サンドラッグ',
+  'matsukiyo':'マツキヨ', 'toysrus':'トイザらス', 'importshopaqua':'アクア',
+  'cosmelink':'コスメリンク', 'r-kojima':'コジマ', 'jism':'Joshinweb',
+};
+function formatShopId(id) {
+  if (!id) return null;
+  if (KNOWN_SHOPS[id.toLowerCase()]) return KNOWN_SHOPS[id.toLowerCase()];
+  // ハイフン/アンダースコアをスペースに、先頭大文字化
+  return id.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
 
 // 仕入先を追加
 function addSupplier(inputEl) {
   const asin = inputEl.dataset.asin;
   const url = inputEl.value.trim();
-  if (!url || !url.startsWith('http')) { showToast('URLを入力してください', 'error'); return; }
+  if (!url || !url.startsWith('http')) return; // 空やURL以外は無視（エラーなし）
 
   const p = products.find(x => x.asin === asin);
   if (!p) return;
   if (!p.suppliers) p.suppliers = [];
 
   // 重複チェック
-  if (p.suppliers.some(s => s.url === url)) { showToast('既に登録済みのURLです', 'error'); return; }
+  if (p.suppliers.some(s => s.url === url)) { showToast('既に登録済みです', 'error'); inputEl.value = ''; return; }
 
   const platform = detectPlatform(url);
   const shop = extractShopName(url);
@@ -766,6 +791,11 @@ function addSupplier(inputEl) {
   inputEl.value = '';
   showToast(`${platform || '仕入先'} を追加しました`);
   renderAll();
+  // 追加後、同じ商品の入力欄にフォーカスを戻す（連続入力用）
+  setTimeout(() => {
+    const newInput = document.querySelector(`.supplier-add-input[data-asin="${asin}"]`);
+    if (newInput) newInput.focus();
+  }, 50);
 }
 
 // 仕入先を削除
