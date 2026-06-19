@@ -1626,10 +1626,12 @@ body {
 .rival-sim .sim-profit.positive { color: #16a34a; }
 .rival-sim .sim-profit.negative { color: #dc2626; }
 
-/* === ポイント入力（%と円の2段） === */
+/* === ポイント入力（%と円引きの2段） === */
 .points-cell { display: flex; flex-direction: column; gap: 2px; }
 .points-row { display: flex; align-items: center; gap: 2px; }
 .points-unit { font-size: 10px; color: #888; flex-shrink: 0; }
+.points-calc { font-size: 9px; color: #16a34a; margin-left: 2px; }
+.points-total { font-size: 10px; color: #dc2626; font-weight: 600; }
 
 /* === 詳細モーダルのセクション === */
 .detail-section-title { font-size: 12px; font-weight: 600; color: #888; margin-top: 16px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--outline, #eee); letter-spacing: 0.05em; }

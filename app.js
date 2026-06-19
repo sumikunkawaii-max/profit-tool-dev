@@ -261,19 +261,19 @@ async function saveInline(el) {
     }
   }
   // PT込み仕入れ値の自動計算
-  if (field === 'purchasePrice' || field === 'points') {
+  // 仕入れ値変更 → PT込み再計算（%と円引き両方を反映）
+  if (field === 'purchasePrice') {
     const p = products.find(x => x.asin === asin);
     if (p) {
-      const pp = field === 'purchasePrice' ? value : (p.purchasePrice ?? null);
-      const pt = field === 'points' ? value : (p.points ?? null);
-      if (pp !== null) {
-        const ptWp = pp - (pt || 0);
-        patchProduct(asin, { [field]: value, purchasePriceWithPoints: ptWp });
-        p[field] = value; p.purchasePriceWithPoints = ptWp;
-        const ptEl = document.querySelector(`[data-asin="${asin}"][data-field="purchasePriceWithPoints"]`);
-        if (ptEl) ptEl.value = ptWp;
-        flashSaved(el); renderProfitCell(asin); return;
-      }
+      p.purchasePrice = value;
+      const pp = value || 0;
+      const pctDiscount = (p.pointsPercent || 0) > 0 ? Math.round(pp * p.pointsPercent / 100) : 0;
+      const yenDiscount = p.points || 0;
+      p.purchasePriceWithPoints = pp - pctDiscount - yenDiscount;
+      patchProduct(asin, { purchasePrice: value, purchasePriceWithPoints: p.purchasePriceWithPoints });
+      const ptEl = document.querySelector(`[data-asin="${asin}"][data-field="purchasePriceWithPoints"]`);
+      if (ptEl) ptEl.value = p.purchasePriceWithPoints;
+      flashSaved(el); renderProfitCell(asin); renderAll(); return;
     }
   }
   // 配送方法選択 → 送料自動入力 + 候補フラグ解除
@@ -301,27 +301,30 @@ async function saveInline(el) {
 }
 function flashSaved(el) { el.classList.add('saved'); setTimeout(() => el.classList.remove('saved'), 800); }
 
-// ポイント%入力 → ポイント円を自動計算
-function savePointsPercent(el) {
+// ポイント(%と円引き)の保存 → PT込み仕入れ値を再計算
+function savePointsAll(el) {
   const asin = el.dataset.asin;
-  const pct = el.value === '' ? null : Number(el.value);
+  const field = el.dataset.field;
+  const value = el.value === '' ? null : Number(el.value);
   const p = products.find(x => x.asin === asin);
   if (!p) return;
-  p.pointsPercent = pct;
-  // 仕入れ値があれば円を自動計算
-  if (pct !== null && p.purchasePrice) {
-    const pointsYen = Math.round(p.purchasePrice * pct / 100);
-    p.points = pointsYen;
-    p.purchasePriceWithPoints = p.purchasePrice - pointsYen;
-    // 円の入力欄も更新
-    const yenEl = document.querySelector(`[data-asin="${asin}"][data-field="points"]`);
-    if (yenEl) yenEl.value = pointsYen;
+
+  p[field] = value;
+
+  // PT込み仕入れ値を再計算: 仕入れ値 - (%分) - (円引き分)
+  if (p.purchasePrice) {
+    const pctDiscount = (p.pointsPercent || 0) > 0 ? Math.round(p.purchasePrice * p.pointsPercent / 100) : 0;
+    const yenDiscount = p.points || 0;
+    p.purchasePriceWithPoints = p.purchasePrice - pctDiscount - yenDiscount;
     const ptEl = document.querySelector(`[data-asin="${asin}"][data-field="purchasePriceWithPoints"]`);
     if (ptEl) ptEl.value = p.purchasePriceWithPoints;
   }
+
   saveProductsToStorage();
   flashSaved(el);
   renderProfitCell(asin);
+  // セル全体を再描画（合計表示更新のため）
+  renderAll();
 }
 
 // === 粗利計算 ===
@@ -402,11 +405,15 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'commissionRate': return `<input class="inline-input inline-input-num" type="number" value="${p.commissionRate??10}" data-asin="${p.asin}" data-field="commissionRate" onchange="saveInline(this)" style="width:50px">`;
     case 'purchasePrice': return `<input class="inline-input inline-input-num" type="number" value="${p.purchasePrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="purchasePrice" onchange="saveInline(this)">`;
     case 'points': {
-      const pointsYen = p.points ?? '';
       const pointsPct = p.pointsPercent ?? '';
+      const pointsYen = p.points ?? '';
+      // %から計算した円額
+      const pctYen = (pointsPct && p.purchasePrice) ? Math.round(p.purchasePrice * pointsPct / 100) : 0;
+      const totalDiscount = pctYen + (pointsYen || 0);
       return `<div class="points-cell">
-        <div class="points-row"><input class="inline-input inline-input-num" type="number" value="${pointsPct}" placeholder="%" data-asin="${p.asin}" data-field="pointsPercent" onchange="savePointsPercent(this)" style="width:45px"><span class="points-unit">%</span></div>
-        <div class="points-row"><input class="inline-input inline-input-num" type="number" value="${pointsYen}" placeholder="¥" data-asin="${p.asin}" data-field="points" onchange="saveInline(this)" style="width:55px"><span class="points-unit">円</span></div>
+        <div class="points-row"><input class="inline-input inline-input-num" type="number" value="${pointsPct}" placeholder="%" data-asin="${p.asin}" data-field="pointsPercent" onchange="savePointsAll(this)" style="width:40px"><span class="points-unit">%</span>${pctYen ? `<span class="points-calc">-${pctYen.toLocaleString()}</span>` : ''}</div>
+        <div class="points-row"><input class="inline-input inline-input-num" type="number" value="${pointsYen}" placeholder="¥" data-asin="${p.asin}" data-field="points" onchange="savePointsAll(this)" style="width:50px"><span class="points-unit">円引</span></div>
+        ${totalDiscount ? `<div class="points-total">計 -${totalDiscount.toLocaleString()}円</div>` : ''}
       </div>`;
     }
     case 'ptPrice': return `<input class="inline-input inline-input-num stacked-readonly" type="number" value="${p.purchasePriceWithPoints??''}" data-asin="${p.asin}" data-field="purchasePriceWithPoints" readonly tabindex="-1">`;
