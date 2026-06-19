@@ -14,7 +14,7 @@ const ALL_COLUMNS = [
   { id:'title',    label:'商品名', fixed:true, sortKey:'title' },
   { id:'asin',     label:'ASIN', fixed:true, sortKey:'asin', w:'95px' },
   // デフォルト表示列
-  { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'180px' },
+  { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'250px' },
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
   { id:'commissionRate', label:'手数料%', w:'55px' },
   { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px' },
