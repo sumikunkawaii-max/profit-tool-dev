@@ -1,3 +1,13 @@
+/* === ツール切り替えタブ === */
+.tool-switcher { display: flex; gap: 0; }
+.tool-tab {
+  padding: 6px 16px; font-size: 13px; font-weight: 500; text-decoration: none;
+  color: #666; border-bottom: 2px solid transparent; transition: all 0.15s;
+  font-family: 'Google Sans', 'Noto Sans JP', sans-serif;
+}
+.tool-tab:hover { color: #333; background: rgba(0,0,0,0.04); }
+.tool-tab.active { color: var(--primary, #1a73e8); border-bottom-color: var(--primary, #1a73e8); }
+
 /* === CSS Variables (Material Design 3 / Google風) === */
 :root {
   --primary: #1a73e8;
