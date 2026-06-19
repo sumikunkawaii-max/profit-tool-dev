@@ -354,7 +354,7 @@ function renderCellContent(colId, p, shippingOpts) {
       return `<div class="listing-price-cell">
         <input class="inline-input inline-input-num" type="number" value="${p.listingPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="listingPrice" onchange="saveInline(this)">
         ${cartPrice ? `<div class="cart-price-hint ${badgeCls}"><span class="cart-badge">${badgeLabel}</span> ¥${cartPrice.toLocaleString()}</div>` : ''}
-        <a class="sc-edit-link" href="https://sellercentral.amazon.co.jp/inventory?search=${p.asin}" target="_blank" rel="noopener" title="セラーセントラルでこの商品の価格を変更">SCで変更</a>
+        <a class="sc-edit-link" href="#" onclick="openSellerCentral('${p.asin}');return false;" title="ASINをコピーしてセラーセントラルを開く">SCで変更</a>
       </div>`;
     }
     case 'lowerPrice': return `<input class="inline-input inline-input-num" type="number" value="${p.lowerPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="lowerPrice" onchange="saveInline(this)">`;
@@ -580,6 +580,14 @@ function bulkOpenSupplier() {
 
 // === ASINコピー ===
 function copyAsin(asin,el) { navigator.clipboard.writeText(asin).then(()=>{ el.classList.add('copied'); el.textContent='Copied!'; setTimeout(()=>{el.classList.remove('copied');el.textContent=asin;},1000); }); }
+
+// セラーセントラルの在庫管理ページを開く（ASINを自動コピー）
+function openSellerCentral(asin) {
+  navigator.clipboard.writeText(asin).then(() => {
+    showToast(`${asin} をコピーしました。SCの検索欄に貼り付けてください`);
+    window.open('https://sellercentral.amazon.co.jp/inventory', '_blank');
+  });
+}
 
 // === フィルター・ソート ===
 function toggleFilterRow() { const r=document.getElementById('filterRow'); const btn=document.querySelector('.btn-toggle-filter'); if(r.style.display==='none'){r.style.display='';btn.classList.add('active')}else{r.style.display='none';btn.classList.remove('active');document.querySelectorAll('.col-filter').forEach(i=>i.value='');colFilters={};renderTable();} }
