@@ -1626,6 +1626,9 @@ body {
 .rival-sim .sim-profit.positive { color: #16a34a; }
 .rival-sim .sim-profit.negative { color: #dc2626; }
 
+/* === 詳細モーダルのセクション === */
+.detail-section-title { font-size: 12px; font-weight: 600; color: #888; margin-top: 16px; margin-bottom: 6px; padding-bottom: 4px; border-bottom: 1px solid var(--outline, #eee); letter-spacing: 0.05em; }
+
 /* === SCで変更リンク === */
 .sc-edit-link { font-size: 10px; color: var(--primary, #1a73e8); text-decoration: none; text-align: center; padding: 2px 0; opacity: 0.7; }
 .sc-edit-link:hover { opacity: 1; text-decoration: underline; }

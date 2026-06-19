@@ -8,36 +8,38 @@ let appSettings = {};
 
 // === 列定義 ===
 const ALL_COLUMNS = [
+  // メインテーブルに表示（デフォルト表示）
   { id:'check',    label:'', fixed:true, w:'30px' },
   { id:'image',    label:'画像', fixed:true, w:'50px' },
   { id:'title',    label:'商品名', fixed:true, sortKey:'title' },
   { id:'asin',     label:'ASIN', fixed:true, sortKey:'asin', w:'95px' },
-  { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'140px' },
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
   { id:'rivals',   label:'ライバル', w:'260px', forceVisible:true },
-  { id:'lowerPrice', label:'下限価格', sortKey:'lowerPrice', filterable:true, w:'75px' },
-  { id:'commissionRate', label:'手数料%', w:'55px' },
-  { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px' },
-  { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'65px' },
-  { id:'ptPrice',  label:'PT込み', w:'70px' },
-  { id:'shipping', label:'配送/送料', filterable:true, filterKey:'shippingMethod', w:'110px' },
-  { id:'quantity', label:'個数', sortKey:'quantity', filterable:true, w:'50px' },
-  { id:'profit',   label:'粗利', w:'80px' },
-  { id:'size',     label:'サイズ', w:'90px' },
-  { id:'brand',    label:'ブランド', sortKey:'brand', filterable:true, w:'90px' },
-  { id:'category', label:'カテゴリ', sortKey:'category', filterable:true, w:'100px' },
-  { id:'amazon',   label:'Amazon出品率', sortKey:'amazonPresence90', w:'65px' },
-  { id:'avgPrice', label:'平均価格', sortKey:'avg90BuyBoxPrice', w:'70px' },
-  { id:'sellers',  label:'出品者', sortKey:'avg90NewSellerCount', filterable:true, w:'50px' },
-  { id:'fba',      label:'FBA', sortKey:'avg90FbaSellerCount', w:'40px' },
-  { id:'fbm',      label:'自己発送', sortKey:'avg90FbmSellerCount', w:'50px' },
   { id:'sales',    label:'販売数', sortKey:'salesRankDrops90', w:'55px' },
-  { id:'rank',     label:'平均ランク', sortKey:'avg90SalesRank', w:'70px' },
-  { id:'rating',   label:'評価', sortKey:'rating', w:'40px' },
-  { id:'reviews',  label:'レビュー', sortKey:'reviewCount', w:'55px' },
+  { id:'sellers',  label:'出品者', sortKey:'avg90NewSellerCount', filterable:true, w:'50px' },
   { id:'notes',    label:'メモ', filterable:true, w:'120px' },
-  { id:'updated',  label:'更新日', sortKey:'lastUpdated', w:'55px' },
   { id:'actions',  label:'操作', fixed:true, w:'80px' },
+  // 詳細モーダルで見れるのでデフォルト非表示（設定から表示可能）
+  { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'140px', defaultHidden:true },
+  { id:'lowerPrice', label:'下限価格', sortKey:'lowerPrice', filterable:true, w:'75px', defaultHidden:true },
+  { id:'commissionRate', label:'手数料%', w:'55px', defaultHidden:true },
+  { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px', defaultHidden:true },
+  { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'65px', defaultHidden:true },
+  { id:'ptPrice',  label:'PT込み', w:'70px', defaultHidden:true },
+  { id:'shipping', label:'配送/送料', filterable:true, filterKey:'shippingMethod', w:'110px', defaultHidden:true },
+  { id:'quantity', label:'個数', sortKey:'quantity', filterable:true, w:'50px', defaultHidden:true },
+  { id:'profit',   label:'粗利', w:'80px', defaultHidden:true },
+  { id:'size',     label:'サイズ', w:'90px', defaultHidden:true },
+  { id:'brand',    label:'ブランド', sortKey:'brand', filterable:true, w:'90px', defaultHidden:true },
+  { id:'category', label:'カテゴリ', sortKey:'category', filterable:true, w:'100px', defaultHidden:true },
+  { id:'amazon',   label:'Amazon出品率', sortKey:'amazonPresence90', w:'65px', defaultHidden:true },
+  { id:'avgPrice', label:'平均価格', sortKey:'avg90BuyBoxPrice', w:'70px', defaultHidden:true },
+  { id:'fba',      label:'FBA', sortKey:'avg90FbaSellerCount', w:'40px', defaultHidden:true },
+  { id:'fbm',      label:'自己発送', sortKey:'avg90FbmSellerCount', w:'50px', defaultHidden:true },
+  { id:'rank',     label:'平均ランク', sortKey:'avg90SalesRank', w:'70px', defaultHidden:true },
+  { id:'rating',   label:'評価', sortKey:'rating', w:'40px', defaultHidden:true },
+  { id:'reviews',  label:'レビュー', sortKey:'reviewCount', w:'55px', defaultHidden:true },
+  { id:'updated',  label:'更新日', sortKey:'lastUpdated', w:'55px', defaultHidden:true },
 ];
 
 function getColumnConfig() {
@@ -52,7 +54,7 @@ function getColumnConfig() {
     merged.forEach(c => { const base = ALL_COLUMNS.find(a => a.id === c.id); if (base && base.forceVisible) c.visible = true; });
     return merged;
   }
-  return ALL_COLUMNS.map(c => ({ ...c, visible: true }));
+  return ALL_COLUMNS.map(c => ({ ...c, visible: c.defaultHidden ? false : true }));
 }
 
 function getVisibleColumns() {
@@ -152,9 +154,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSettings(); closeCsvModal(); } });
   appSettings = loadSettingsFromStorage();
   // ライバル列の位置を修正（出品価格の隣に強制配置）
-  if (appSettings.columnConfig && !appSettings._rivalsPositionFixed) {
+  if (!appSettings._layoutV2) {
     appSettings.columnConfig = null;
-    appSettings._rivalsPositionFixed = true;
+    appSettings._layoutV2 = true;
     saveSettingsToStorage();
   }
   products = loadProductsFromStorage();
@@ -908,20 +910,56 @@ async function updateRivalsForProduct(p) {
 
 // === 詳細モーダル ===
 function openDetail(asin) {
-  const p=products.find(x=>x.asin===asin);if(!p)return;
-  document.getElementById('modalTitle').textContent='商品詳細';
-  const pr=calcProfit(p);
-  document.getElementById('modalBody').innerHTML=`
-    <div class="detail-top">${p.imageUrl?`<img class="detail-image" src="${esc(p.imageUrl)}">`:'<div class="detail-image" style="display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:48px;color:var(--outline)">image</span></div>'}
-    <div class="detail-info"><h3>${esc(p.title)}</h3><div class="detail-meta"><span class="detail-tag">${p.asin}</span>${p.brand?`<span class="detail-tag">${esc(p.brand)}</span>`:''}</div></div></div>
+  const p = products.find(x => x.asin === asin);
+  if (!p) return;
+  document.getElementById('modalTitle').textContent = '商品詳細';
+  const pr = calcProfit(p);
+  const ptPrice = p.purchasePrice ? p.purchasePrice - (p.points || 0) : null;
+  const shipMethod = p.shippingMethod || '-';
+  const shipCost = p.shippingCost != null ? '¥' + p.shippingCost.toLocaleString() : '-';
+
+  document.getElementById('modalBody').innerHTML = `
+    <div class="detail-top">
+      ${p.imageUrl ? `<img class="detail-image" src="${esc(p.imageUrl)}">` : '<div class="detail-image" style="display:flex;align-items:center;justify-content:center"><span class="material-symbols-outlined" style="font-size:48px;color:var(--outline)">image</span></div>'}
+      <div class="detail-info">
+        <h3>${esc(p.title)}</h3>
+        <div class="detail-meta">
+          <span class="detail-tag">${p.asin}</span>
+          ${p.brand ? `<span class="detail-tag">${esc(p.brand)}</span>` : ''}
+          ${p.category ? `<span class="detail-tag">${esc(p.category.split(' > ').pop())}</span>` : ''}
+        </div>
+        <a href="https://www.amazon.co.jp/dp/${p.asin}" target="_blank" rel="noopener" style="font-size:12px;color:var(--primary)">Amazonで見る</a>
+      </div>
+    </div>
+
+    <div class="detail-section-title">価格・利益情報</div>
     <div class="detail-grid">
-      <div class="detail-item"><div class="detail-item-label">平均価格(90日)</div><div class="detail-item-value price">${fmtPrice(p.avg90BuyBoxPrice)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">出品価格</div><div class="detail-item-value price">${fmtPrice(p.listingPrice)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">平均価格(90日)</div><div class="detail-item-value">${fmtPrice(p.avg90BuyBoxPrice)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">手数料率</div><div class="detail-item-value">${p.commissionRate ?? 10}%</div></div>
+      <div class="detail-item"><div class="detail-item-label">仕入れ値</div><div class="detail-item-value">${fmtPrice(p.purchasePrice)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">ポイント</div><div class="detail-item-value">${p.points != null ? '¥' + p.points.toLocaleString() : '-'}</div></div>
+      <div class="detail-item"><div class="detail-item-label">PT込み仕入れ値</div><div class="detail-item-value">${ptPrice != null ? '¥' + ptPrice.toLocaleString() : '-'}</div></div>
+      ${pr ? `<div class="detail-item" style="grid-column:1/-1;background:${pr.profit >= 0 ? 'var(--success-light)' : 'var(--error-light)'}"><div class="detail-item-label">粗利</div><div class="detail-item-value" style="color:${pr.profit >= 0 ? 'var(--success)' : 'var(--error)'}">¥${pr.profit.toLocaleString()} (${pr.profitRate}%)</div></div>` : ''}
+    </div>
+
+    <div class="detail-section-title">配送・サイズ</div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-item-label">配送方法</div><div class="detail-item-value">${esc(shipMethod)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">送料</div><div class="detail-item-value">${shipCost}</div></div>
+      <div class="detail-item"><div class="detail-item-label">サイズ</div><div class="detail-item-value">${p.sizeCm ? p.sizeCm + 'cm' : '-'}</div></div>
+      <div class="detail-item"><div class="detail-item-label">重量</div><div class="detail-item-value">${p.weightG ? (p.weightG >= 1000 ? (p.weightG / 1000).toFixed(1) + 'kg' : p.weightG + 'g') : '-'}</div></div>
+    </div>
+
+    <div class="detail-section-title">販売データ</div>
+    <div class="detail-grid">
+      <div class="detail-item"><div class="detail-item-label">販売数</div><div class="detail-item-value">${formatSales(p)}</div></div>
       <div class="detail-item"><div class="detail-item-label">出品者数</div><div class="detail-item-value">${fmtNum(p.avg90NewSellerCount)}</div></div>
-      <div class="detail-item"><div class="detail-item-label">FBA/自己発送</div><div class="detail-item-value">${fmtNum(p.avg90FbaSellerCount)}/${fmtNum(p.avg90FbmSellerCount)}</div></div>
-      <div class="detail-item"><div class="detail-item-label">Amazon出品率</div><div class="detail-item-value">${p.amazonPresence90!=null?p.amazonPresence90+'%':'-'}</div></div>
-      <div class="detail-item"><div class="detail-item-label">販売数(90日)</div><div class="detail-item-value">${formatSales(p)}</div></div>
-      <div class="detail-item"><div class="detail-item-label">サイズ/重量</div><div class="detail-item-value">${formatSizeDisplay(p)}</div></div>
-      ${pr?`<div class="detail-item" style="grid-column:1/-1;background:${pr.profit>=0?'var(--success-light)':'var(--error-light)'}"><div class="detail-item-label">粗利</div><div class="detail-item-value" style="color:${pr.profit>=0?'var(--success)':'var(--error)'}">¥${pr.profit.toLocaleString()}(${pr.profitRate}%)</div></div>`:''}
+      <div class="detail-item"><div class="detail-item-label">FBA / 自己発送</div><div class="detail-item-value">${fmtNum(p.avg90FbaSellerCount)} / ${fmtNum(p.avg90FbmSellerCount)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">Amazon出品率</div><div class="detail-item-value">${p.amazonPresence90 != null ? p.amazonPresence90 + '%' : '-'}</div></div>
+      <div class="detail-item"><div class="detail-item-label">平均ランク</div><div class="detail-item-value">${fmtRank(p.avg90SalesRank)}</div></div>
+      <div class="detail-item"><div class="detail-item-label">評価</div><div class="detail-item-value">${p.rating != null ? p.rating.toFixed(1) + ' / 5.0' : '-'}</div></div>
+      <div class="detail-item"><div class="detail-item-label">レビュー数</div><div class="detail-item-value">${fmtNum(p.reviewCount)}</div></div>
     </div>`;
   document.getElementById('modalOverlay').classList.add('active');
 }
