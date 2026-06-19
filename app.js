@@ -354,6 +354,7 @@ function renderCellContent(colId, p, shippingOpts) {
       return `<div class="listing-price-cell">
         <input class="inline-input inline-input-num" type="number" value="${p.listingPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="listingPrice" onchange="saveInline(this)">
         ${cartPrice ? `<div class="cart-price-hint ${badgeCls}"><span class="cart-badge">${badgeLabel}</span> ¥${cartPrice.toLocaleString()}</div>` : ''}
+        <a class="sc-edit-link" href="https://sellercentral.amazon.co.jp/inventory?search=${p.asin}" target="_blank" rel="noopener" title="セラーセントラルでこの商品の価格を変更">SCで変更</a>
       </div>`;
     }
     case 'lowerPrice': return `<input class="inline-input inline-input-num" type="number" value="${p.lowerPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="lowerPrice" onchange="saveInline(this)">`;
