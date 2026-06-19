@@ -1621,6 +1621,11 @@ body {
 .rival-sim .sim-profit.positive { color: #16a34a; }
 .rival-sim .sim-profit.negative { color: #dc2626; }
 
+/* === SKU入力欄 === */
+.sku-cell { display: flex; flex-direction: column; gap: 2px; }
+.sku-help { font-size: 10px; color: var(--primary, #1a73e8); text-decoration: none; opacity: 0.8; }
+.sku-help:hover { opacity: 1; text-decoration: underline; }
+
 /* === 自動価格調整ボタン / SC価格出力ボタン === */
 .btn-auto-price, .btn-sc-export {
   display: inline-flex; align-items: center; gap: 4px;

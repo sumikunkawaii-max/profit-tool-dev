@@ -12,7 +12,7 @@ const ALL_COLUMNS = [
   { id:'image',    label:'画像', fixed:true, w:'50px' },
   { id:'title',    label:'商品名', fixed:true, sortKey:'title' },
   { id:'asin',     label:'ASIN', fixed:true, sortKey:'asin', w:'95px' },
-  { id:'sku',      label:'SKU', w:'100px', filterable:true },
+  { id:'sku',      label:'SKU', w:'120px', filterable:true, forceVisible:true },
   { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'140px' },
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
   { id:'rivals',   label:'ライバル', w:'200px', forceVisible:true },
@@ -331,7 +331,7 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'image': return p.imageUrl ? `<img class="product-thumb" src="${esc(p.imageUrl)}" loading="lazy" onclick="openDetail('${p.asin}')" onerror="this.style.display='none'">` : `<div class="product-thumb-placeholder" onclick="openDetail('${p.asin}')"></div>`;
     case 'title': return `<a class="product-name" href="https://www.amazon.co.jp/dp/${p.asin}" target="_blank" rel="noopener">${esc(p.title)}</a>`;
     case 'asin': return `<span class="asin-copy" onclick="copyAsin('${p.asin}',this)" title="コピー">${p.asin}</span>`;
-    case 'sku': return `<input class="inline-input" type="text" value="${escA(p.sku||'')}" placeholder="SKU" data-asin="${p.asin}" data-field="sku" onchange="saveInline(this)">`;
+    case 'sku': return `<div class="sku-cell"><input class="inline-input" type="text" value="${escA(p.sku||'')}" placeholder="SKUを入力" data-asin="${p.asin}" data-field="sku" onchange="saveInline(this)" title="セラーセントラルの在庫管理で確認できます">${!p.sku ? `<a class="sku-help" href="https://sellercentral.amazon.co.jp/inventory" target="_blank" rel="noopener" title="セラーセントラルで確認">SCで確認</a>` : ''}</div>`;
     case 'supplier': {
       const pf = p.supplierPlatform || '';
       const shop = p.supplierShop || '';
