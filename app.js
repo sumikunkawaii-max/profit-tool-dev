@@ -34,7 +34,7 @@ const ALL_COLUMNS = [
   { id:'rank',     label:'平均ランク', sortKey:'avg90SalesRank', w:'70px' },
   { id:'rating',   label:'評価', sortKey:'rating', w:'40px' },
   { id:'reviews',  label:'レビュー', sortKey:'reviewCount', w:'55px' },
-  { id:'rivals',   label:'ライバル', w:'200px' },
+  { id:'rivals',   label:'ライバル', w:'200px', forceVisible:true },
   { id:'notes',    label:'メモ', filterable:true, w:'120px' },
   { id:'updated',  label:'更新日', sortKey:'lastUpdated', w:'55px' },
   { id:'actions',  label:'操作', fixed:true, w:'80px' },
@@ -48,6 +48,8 @@ function getColumnConfig() {
       .map(s => { const base = ALL_COLUMNS.find(a => a.id === s.id); return base ? { ...base, ...s } : null; })
       .filter(Boolean);
     ALL_COLUMNS.forEach(a => { if (!ids.includes(a.id)) merged.push({ ...a, visible: true }); });
+    // forceVisible列は常に表示
+    merged.forEach(c => { const base = ALL_COLUMNS.find(a => a.id === c.id); if (base && base.forceVisible) c.visible = true; });
     return merged;
   }
   return ALL_COLUMNS.map(c => ({ ...c, visible: true }));
