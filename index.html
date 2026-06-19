@@ -48,6 +48,11 @@
           <span class="material-symbols-outlined">save</span>
           <span>保存</span>
         </button>
+        <button class="btn-load" onclick="document.getElementById('loadFile').click()" title="バックアップから復元">
+          <span class="material-symbols-outlined">folder_open</span>
+          <span>読込</span>
+        </button>
+        <input type="file" id="loadFile" accept=".json" style="display:none" onchange="importAllData(this)">
         <button class="btn-icon btn-settings" onclick="openSettings()" title="設定">
           <span class="material-symbols-outlined">settings</span>
         </button>

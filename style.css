@@ -1752,6 +1752,16 @@ body {
 .btn-backup:hover { background: #c8e6c9; }
 .btn-backup .material-symbols-outlined { font-size: 18px; }
 
+/* 読込ボタン */
+.btn-load {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 6px 12px; border-radius: 8px; border: 1px solid #ff9800;
+  background: #fff3e0; cursor: pointer; font-size: 12px; color: #e65100;
+  font-family: var(--font-sans); font-weight: 500;
+}
+.btn-load:hover { background: #ffe0b2; }
+.btn-load .material-symbols-outlined { font-size: 18px; }
+
 /* インストールボタン */
 .btn-install {
   display: inline-flex; align-items: center; gap: 4px;
