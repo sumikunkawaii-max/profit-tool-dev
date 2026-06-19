@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=9">
+  <link rel="stylesheet" href="style.css?v=10">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a73e8">
   <link rel="icon" href="icon-192.svg">
@@ -40,6 +40,14 @@
           <span class="status-dot"></span>
           <span class="status-text">確認中...</span>
         </span>
+        <button class="btn-install" id="installBtn" onclick="installPWA()" title="アプリとしてインストール" style="display:none">
+          <span class="material-symbols-outlined">install_desktop</span>
+          <span>インストール</span>
+        </button>
+        <button class="btn-backup" onclick="quickBackup()" title="データをバックアップ">
+          <span class="material-symbols-outlined">save</span>
+          <span>保存</span>
+        </button>
         <button class="btn-icon btn-settings" onclick="openSettings()" title="設定">
           <span class="material-symbols-outlined">settings</span>
         </button>
@@ -132,18 +140,23 @@
   </div>
 
   <script>
-    // Service Worker完全削除+キャッシュ全クリア
+    // PWA Service Worker登録 + アップデート検知
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.getRegistrations().then(regs => {
-        regs.forEach(r => r.unregister());
-      });
-      if ('caches' in window) {
-        caches.keys().then(keys => {
-          keys.forEach(k => caches.delete(k));
+      navigator.serviceWorker.register('./sw.js').then(reg => {
+        reg.addEventListener('updatefound', () => {
+          const newWorker = reg.installing;
+          newWorker.addEventListener('statechange', () => {
+            if (newWorker.state === 'activated') {
+              // 新しいバージョンが利用可能
+              if (confirm('ツールが更新されました。今すぐ反映しますか？')) {
+                location.reload();
+              }
+            }
+          });
         });
-      }
+      });
     }
   </script>
-  <script src="app.js?v=9"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

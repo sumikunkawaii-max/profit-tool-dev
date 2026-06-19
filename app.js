@@ -159,7 +159,32 @@ document.addEventListener('DOMContentLoaded', () => {
   products = loadProductsFromStorage();
   checkApiStatus();
   renderAll();
-  // Service Workerは使わない（キャッシュ問題回避）
+
+  // データが空の場合、復元案内を表示
+  if (products.length === 0) {
+    const emptyEl = document.getElementById('emptyState');
+    if (emptyEl) {
+      emptyEl.innerHTML = `
+        <span class="material-symbols-outlined empty-icon">add_shopping_cart</span>
+        <h3>商品が登録されていません</h3>
+        <p>ヘッダーのASIN入力欄から商品を追加してください</p>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid #eee">
+          <p style="font-size:13px;color:#666;margin-bottom:8px">バックアップファイルがある場合:</p>
+          <button class="btn-primary" onclick="document.getElementById('restoreFile').click()">
+            <span class="material-symbols-outlined">upload</span>バックアップから復元
+          </button>
+          <input type="file" id="restoreFile" accept=".json" style="display:none" onchange="importAllData(this)">
+        </div>`;
+    }
+  }
+
+  // 7日以上バックアップしていなければリマインド
+  const lastBackup = appSettings._lastBackup;
+  if (products.length > 0 && (!lastBackup || (Date.now() - new Date(lastBackup).getTime()) > 7 * 24 * 60 * 60 * 1000)) {
+    setTimeout(() => {
+      showToast('7日以上バックアップしていません。「保存」ボタンでバックアップできます', 'error');
+    }, 3000);
+  }
 });
 
 // === データ操作 ===
@@ -1148,3 +1173,50 @@ function clearAllData() {
 // === UIヘルパー ===
 function showLoading(s){document.getElementById('loadingOverlay').classList.toggle('active',s);document.getElementById('fetchBtn').disabled=s;}
 function showToast(msg,type='success'){const c=document.getElementById('toastContainer');const t=document.createElement('div');t.className=`toast toast-${type}`;t.innerHTML=`<span class="material-symbols-outlined" style="font-size:20px">${type==='error'?'error':'check_circle'}</span><span>${esc(msg)}</span>`;c.appendChild(t);setTimeout(()=>{t.style.animation='toastOut 300ms ease-in forwards';setTimeout(()=>t.remove(),300);},3000);}
+
+// ワンクリックバックアップ
+function quickBackup() {
+  const data = { products, settings: appSettings, exportDate: new Date().toISOString() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const dateStr = new Date().toISOString().slice(0, 10);
+  a.download = `profit-backup-${dateStr}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  appSettings._lastBackup = new Date().toISOString();
+  saveSettingsToStorage();
+  showToast('バックアップを保存しました');
+}
+
+// データがある場合、タブを閉じる時に警告
+window.addEventListener('beforeunload', (e) => {
+  if (products.length > 0) {
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
+
+// PWAインストール促進
+let deferredPrompt = null;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // インストールボタンを表示
+  const installBtn = document.getElementById('installBtn');
+  if (installBtn) installBtn.style.display = 'inline-flex';
+});
+
+function installPWA() {
+  if (!deferredPrompt) return;
+  deferredPrompt.prompt();
+  deferredPrompt.userChoice.then(choice => {
+    if (choice.outcome === 'accepted') {
+      showToast('アプリをインストールしました');
+    }
+    deferredPrompt = null;
+    const installBtn = document.getElementById('installBtn');
+    if (installBtn) installBtn.style.display = 'none';
+  });
+}
