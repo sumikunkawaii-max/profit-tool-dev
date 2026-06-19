@@ -230,6 +230,8 @@ async function handleFetch() {
   saveProductsToStorage();
   input.value = '';
   renderAll();
+  // 配送方法を自動提案
+  suggestShipping([asin]);
 }
 
 async function refreshProduct(asin) {
@@ -249,6 +251,7 @@ async function refreshProduct(asin) {
   saveProductsToStorage();
   showToast('更新しました');
   renderAll();
+  suggestShipping([asin]);
 }
 
 function deleteProduct(asin) {
