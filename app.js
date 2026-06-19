@@ -18,7 +18,7 @@ const ALL_COLUMNS = [
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
   { id:'commissionRate', label:'手数料%', w:'55px' },
   { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px' },
-  { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'65px' },
+  { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'90px' },
   { id:'ptPrice',  label:'PT込み', w:'70px' },
   { id:'shipping', label:'配送/送料', filterable:true, filterKey:'shippingMethod', w:'110px' },
   { id:'profit',   label:'粗利', w:'80px' },
@@ -142,7 +142,7 @@ function parseKeepaProduct(product) {
 }
 
 const USER_FIELDS = ['supplier','supplierPlatform','supplierShop','supplierUrl','suppliers','listingPrice','lowerPrice',
-  'purchasePrice','points','purchasePriceWithPoints','quantity','shippingMethod','shippingCost',
+  'purchasePrice','points','pointsPercent','purchasePriceWithPoints','quantity','shippingMethod','shippingCost',
   'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes'];
 
 // === 初期化 ===
@@ -301,6 +301,29 @@ async function saveInline(el) {
 }
 function flashSaved(el) { el.classList.add('saved'); setTimeout(() => el.classList.remove('saved'), 800); }
 
+// ポイント%入力 → ポイント円を自動計算
+function savePointsPercent(el) {
+  const asin = el.dataset.asin;
+  const pct = el.value === '' ? null : Number(el.value);
+  const p = products.find(x => x.asin === asin);
+  if (!p) return;
+  p.pointsPercent = pct;
+  // 仕入れ値があれば円を自動計算
+  if (pct !== null && p.purchasePrice) {
+    const pointsYen = Math.round(p.purchasePrice * pct / 100);
+    p.points = pointsYen;
+    p.purchasePriceWithPoints = p.purchasePrice - pointsYen;
+    // 円の入力欄も更新
+    const yenEl = document.querySelector(`[data-asin="${asin}"][data-field="points"]`);
+    if (yenEl) yenEl.value = pointsYen;
+    const ptEl = document.querySelector(`[data-asin="${asin}"][data-field="purchasePriceWithPoints"]`);
+    if (ptEl) ptEl.value = p.purchasePriceWithPoints;
+  }
+  saveProductsToStorage();
+  flashSaved(el);
+  renderProfitCell(asin);
+}
+
 // === 粗利計算 ===
 function calcProfit(p) {
   const listing = p.listingPrice, cost = p.purchasePriceWithPoints ?? p.purchasePrice;
@@ -378,7 +401,14 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'lowerPrice': return `<input class="inline-input inline-input-num" type="number" value="${p.lowerPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="lowerPrice" onchange="saveInline(this)">`;
     case 'commissionRate': return `<input class="inline-input inline-input-num" type="number" value="${p.commissionRate??10}" data-asin="${p.asin}" data-field="commissionRate" onchange="saveInline(this)" style="width:50px">`;
     case 'purchasePrice': return `<input class="inline-input inline-input-num" type="number" value="${p.purchasePrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="purchasePrice" onchange="saveInline(this)">`;
-    case 'points': return `<input class="inline-input inline-input-num" type="number" value="${p.points??''}" placeholder="0" data-asin="${p.asin}" data-field="points" onchange="saveInline(this)">`;
+    case 'points': {
+      const pointsYen = p.points ?? '';
+      const pointsPct = p.pointsPercent ?? '';
+      return `<div class="points-cell">
+        <div class="points-row"><input class="inline-input inline-input-num" type="number" value="${pointsPct}" placeholder="%" data-asin="${p.asin}" data-field="pointsPercent" onchange="savePointsPercent(this)" style="width:45px"><span class="points-unit">%</span></div>
+        <div class="points-row"><input class="inline-input inline-input-num" type="number" value="${pointsYen}" placeholder="¥" data-asin="${p.asin}" data-field="points" onchange="saveInline(this)" style="width:55px"><span class="points-unit">円</span></div>
+      </div>`;
+    }
     case 'ptPrice': return `<input class="inline-input inline-input-num stacked-readonly" type="number" value="${p.purchasePriceWithPoints??''}" data-asin="${p.asin}" data-field="purchasePriceWithPoints" readonly tabindex="-1">`;
     case 'shipping': {
       const cls = getShipClass(p.shippingMethod);
