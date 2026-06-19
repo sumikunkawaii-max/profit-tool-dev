@@ -81,7 +81,17 @@ const DEFAULT_SETTINGS = {
   columnConfig: null,
 };
 
-function saveProductsToStorage() { localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products)); }
+function saveProductsToStorage() {
+  localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
+  // 自動保存インジケーター表示
+  const indicator = document.getElementById('autoSaveIndicator');
+  if (indicator) {
+    indicator.textContent = '自動保存済';
+    indicator.classList.add('visible');
+    clearTimeout(indicator._timer);
+    indicator._timer = setTimeout(() => indicator.classList.remove('visible'), 2000);
+  }
+}
 function loadProductsFromStorage() { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.products)) || []; } catch { return []; } }
 function saveSettingsToStorage() { localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(appSettings)); }
 function loadSettingsFromStorage() {

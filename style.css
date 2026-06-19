@@ -1744,6 +1744,13 @@ body {
 .supplier-add-input { width: 100%; padding: 3px 6px; border: 1px dashed #ccc; border-radius: 4px; font-size: 10px; }
 .supplier-add-input:focus { border-color: var(--primary, #1a73e8); outline: none; }
 
+/* 自動保存インジケーター */
+.auto-save-indicator {
+  font-size: 11px; color: #4caf50; opacity: 0; transition: opacity 0.3s;
+  white-space: nowrap;
+}
+.auto-save-indicator.visible { opacity: 1; }
+
 /* バックアップボタン */
 .btn-backup {
   display: inline-flex; align-items: center; gap: 4px;

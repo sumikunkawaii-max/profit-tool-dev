@@ -44,9 +44,10 @@
           <span class="material-symbols-outlined">install_desktop</span>
           <span>インストール</span>
         </button>
-        <button class="btn-backup" onclick="quickBackup()" title="データをバックアップ">
-          <span class="material-symbols-outlined">save</span>
-          <span>保存</span>
+        <span class="auto-save-indicator" id="autoSaveIndicator"></span>
+        <button class="btn-backup" onclick="quickBackup()" title="データをバックアップ（ファイル出力）">
+          <span class="material-symbols-outlined">download</span>
+          <span>バックアップ</span>
         </button>
         <button class="btn-load" onclick="document.getElementById('loadFile').click()" title="バックアップから復元">
           <span class="material-symbols-outlined">folder_open</span>
