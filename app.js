@@ -150,6 +150,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('asinInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleFetch(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSettings(); closeCsvModal(); } });
   appSettings = loadSettingsFromStorage();
+  // ライバル列の位置を修正（出品価格の隣に強制配置）
+  if (appSettings.columnConfig && !appSettings._rivalsPositionFixed) {
+    appSettings.columnConfig = null;
+    appSettings._rivalsPositionFixed = true;
+    saveSettingsToStorage();
+  }
   products = loadProductsFromStorage();
   checkApiStatus();
   renderAll();
