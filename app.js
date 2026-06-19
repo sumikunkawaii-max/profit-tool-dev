@@ -398,12 +398,12 @@ function renderCellContent(colId, p, shippingOpts) {
 
       suppliers.forEach((s, i) => {
         const pfClass = getPlatformClass(s.platform);
-        html += `<div class="supplier-row">`;
-        html += `<span class="supplier-platform ${pfClass}">${esc(s.platform || '?')}</span>`;
-        if (s.shop) html += `<span class="supplier-shop-name">${esc(s.shop.substring(0, 15))}</span>`;
-        html += `<a class="supplier-open-btn" href="${escA(s.url)}" target="_blank" rel="noopener" title="${escA(s.url)}">開く</a>`;
-        html += `<button class="supplier-remove-btn" onclick="removeSupplier('${p.asin}',${i})" title="削除">x</button>`;
-        html += `</div>`;
+        html += `<a class="supplier-row supplier-link" href="${escA(s.url)}" target="_blank" rel="noopener" title="${escA(s.url)}">`;
+        html += `<span class="supplier-platform ${pfClass}">${esc(s.platform || 'URL')}</span>`;
+        if (s.shop) html += `<span class="supplier-shop-name">${esc(s.shop.substring(0, 20))}</span>`;
+        html += `<span class="supplier-open-icon">↗</span>`;
+        html += `</a>`;
+        html += `<button class="supplier-remove-btn" onclick="event.stopPropagation();removeSupplier('${p.asin}',${i})" title="削除">x</button>`;
       });
 
       // 一括で開くボタン（2件以上ある場合）
@@ -411,9 +411,9 @@ function renderCellContent(colId, p, shippingOpts) {
         html += `<button class="supplier-bulk-open" onclick="openAllSuppliers('${p.asin}')" title="全ての仕入先を開く">全て開く (${suppliers.length}件)</button>`;
       }
 
-      // 追加ボタン
+      // URL入力欄（Enter or ペーストで追加）
       html += `<div class="supplier-add-row">`;
-      html += `<input class="supplier-add-input" type="text" placeholder="URLを貼り付け" data-asin="${p.asin}" onkeydown="if(event.key==='Enter')addSupplier(this)">`;
+      html += `<input class="supplier-add-input" type="text" placeholder="URLを貼り付け" data-asin="${p.asin}" onkeydown="if(event.key==='Enter')addSupplier(this)" onpaste="setTimeout(()=>addSupplier(this),100)">`;
       html += `</div>`;
 
       html += '</div>';
