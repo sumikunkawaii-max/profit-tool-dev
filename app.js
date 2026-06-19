@@ -16,20 +16,20 @@ const ALL_COLUMNS = [
   // デフォルト表示列
   { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'180px' },
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
+  { id:'commissionRate', label:'手数料%', w:'55px' },
   { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px' },
+  { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'65px' },
+  { id:'ptPrice',  label:'PT込み', w:'70px' },
+  { id:'shipping', label:'配送/送料', filterable:true, filterKey:'shippingMethod', w:'110px' },
   { id:'profit',   label:'粗利', w:'80px' },
+  { id:'size',     label:'サイズ', w:'90px' },
   { id:'sales',    label:'販売数', sortKey:'salesRankDrops90', w:'55px' },
   { id:'sellers',  label:'出品者', sortKey:'avg90NewSellerCount', filterable:true, w:'50px' },
   { id:'notes',    label:'メモ', filterable:true, w:'120px' },
   { id:'actions',  label:'操作', fixed:true, w:'80px' },
   // デフォルト非表示（設定から表示可能）
   { id:'lowerPrice', label:'下限価格', sortKey:'lowerPrice', filterable:true, w:'75px', defaultHidden:true },
-  { id:'commissionRate', label:'手数料%', w:'55px', defaultHidden:true },
-  { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'65px', defaultHidden:true },
-  { id:'ptPrice',  label:'PT込み', w:'70px', defaultHidden:true },
-  { id:'shipping', label:'配送/送料', filterable:true, filterKey:'shippingMethod', w:'110px', defaultHidden:true },
   { id:'quantity', label:'個数', sortKey:'quantity', filterable:true, w:'50px', defaultHidden:true },
-  { id:'size',     label:'サイズ', w:'90px', defaultHidden:true },
   { id:'brand',    label:'ブランド', sortKey:'brand', filterable:true, w:'90px', defaultHidden:true },
   { id:'category', label:'カテゴリ', sortKey:'category', filterable:true, w:'100px', defaultHidden:true },
   { id:'amazon',   label:'Amazon出品率', sortKey:'amazonPresence90', w:'65px', defaultHidden:true },
@@ -151,9 +151,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSettings(); closeCsvModal(); } });
   appSettings = loadSettingsFromStorage();
   // 列設定リセット（V3: シンプル化対応）
-  if (!appSettings._layoutV3) {
+  if (!appSettings._layoutV4) {
     appSettings.columnConfig = null;
-    appSettings._layoutV3 = true;
+    appSettings._layoutV4 = true;
     saveSettingsToStorage();
   }
   products = loadProductsFromStorage();
