@@ -83,6 +83,8 @@ const DEFAULT_SETTINGS = {
 
 function saveProductsToStorage() {
   localStorage.setItem(STORAGE_KEYS.products, JSON.stringify(products));
+  // 日付スナップショットを自動作成（1日1回）
+  saveDailySnapshot();
   // 自動保存インジケーター表示
   const indicator = document.getElementById('autoSaveIndicator');
   if (indicator) {
@@ -91,6 +93,68 @@ function saveProductsToStorage() {
     clearTimeout(indicator._timer);
     indicator._timer = setTimeout(() => indicator.classList.remove('visible'), 2000);
   }
+}
+
+// 日付スナップショット管理
+const SNAPSHOT_PREFIX = 'pm_snapshot_';
+const MAX_SNAPSHOTS = 14; // 14日分保持
+
+function saveDailySnapshot() {
+  const today = new Date().toISOString().slice(0, 10);
+  const key = SNAPSHOT_PREFIX + today;
+  // 本日分が未作成の場合のみ保存
+  if (!localStorage.getItem(key)) {
+    localStorage.setItem(key, JSON.stringify({ products, settings: appSettings, date: today }));
+    cleanOldSnapshots();
+  }
+}
+
+function cleanOldSnapshots() {
+  const keys = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(SNAPSHOT_PREFIX)) keys.push(k);
+  }
+  keys.sort().reverse();
+  // 古いスナップショットを削除
+  keys.slice(MAX_SNAPSHOTS).forEach(k => localStorage.removeItem(k));
+}
+
+function getSnapshotList() {
+  const list = [];
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i);
+    if (k && k.startsWith(SNAPSHOT_PREFIX)) {
+      const date = k.replace(SNAPSHOT_PREFIX, '');
+      try {
+        const data = JSON.parse(localStorage.getItem(k));
+        list.push({ key: k, date, count: data.products ? data.products.length : 0 });
+      } catch { /* skip */ }
+    }
+  }
+  return list.sort((a, b) => b.date.localeCompare(a.date));
+}
+
+function restoreSnapshot(key) {
+  try {
+    const data = JSON.parse(localStorage.getItem(key));
+    if (!data || !data.products) { showToast('スナップショットの読み込みに失敗しました', 'error'); return; }
+    if (!confirm(`${data.date} のデータに戻しますか？（現在のデータは上書きされます）`)) return;
+    products = data.products;
+    saveProductsToStorage();
+    if (data.settings) { appSettings = { ...appSettings, ...data.settings }; saveSettingsToStorage(); }
+    checkApiStatus();
+    renderAll();
+    showToast(`${data.date} のデータに復元しました（${products.length}件）`);
+  } catch { showToast('復元に失敗しました', 'error'); }
+}
+
+function deleteSnapshot(key) {
+  const date = key.replace(SNAPSHOT_PREFIX, '');
+  if (!confirm(`${date} のスナップショットを削除しますか？`)) return;
+  localStorage.removeItem(key);
+  showToast('削除しました');
+  openHistory();
 }
 function loadProductsFromStorage() { try { return JSON.parse(localStorage.getItem(STORAGE_KEYS.products)) || []; } catch { return []; } }
 function saveSettingsToStorage() { localStorage.setItem(STORAGE_KEYS.settings, JSON.stringify(appSettings)); }
@@ -988,7 +1052,29 @@ function renderSettingsTab() {
     body.innerHTML=`<div class="settings-section"><h4 class="settings-label">列の表示/非表示・並び順</h4><p class="settings-desc">チェックで表示切替、◀▶で並び替え</p>
       <div class="col-config-grid">${chips}</div>
       <div style="margin-top:12px;display:flex;gap:8px;align-items:center"><button class="btn-primary" onclick="saveColumnConfig()"><span class="material-symbols-outlined">save</span>保存</button><button class="btn-secondary" onclick="resetColumnConfig()">リセット</button></div></div>`;
+  } else if(currentSettingsTab==='history') {
+    openHistory();
   }
+}
+
+function openHistory() {
+  const body = document.getElementById('settingsBody');
+  const snapshots = getSnapshotList();
+  const rows = snapshots.map(s => {
+    const d = new Date(s.date + 'T00:00:00');
+    const label = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+    return `<div class="history-row">
+      <div class="history-date">${label}</div>
+      <div class="history-count">${s.count}件</div>
+      <button class="btn-secondary" onclick="restoreSnapshot('${s.key}')">この日に戻す</button>
+      <button class="btn-icon btn-delete" onclick="deleteSnapshot('${s.key}')" title="削除"><span class="material-symbols-outlined">delete</span></button>
+    </div>`;
+  }).join('');
+  body.innerHTML = `<div class="settings-section">
+    <h4 class="settings-label">データ履歴（自動スナップショット）</h4>
+    <p class="settings-desc">毎日の最初の変更時にデータを自動保存しています。過去14日分のデータに戻せます。</p>
+    ${snapshots.length ? `<div class="history-list">${rows}</div>` : '<p style="color:#999;text-align:center;padding:20px">スナップショットはまだありません</p>'}
+  </div>`;
 }
 
 // === 列設定 ===
