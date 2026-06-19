@@ -36,25 +36,22 @@
           <span id="updateLabel">全商品更新</span>
         </button>
         <span class="update-status" id="updateStatus"></span>
+        <span class="auto-save-indicator" id="autoSaveIndicator"></span>
         <span class="status-badge" id="apiStatus">
           <span class="status-dot"></span>
           <span class="status-text">確認中...</span>
         </span>
-        <button class="btn-install" id="installBtn" onclick="installPWA()" title="アプリとしてインストール" style="display:none">
-          <span class="material-symbols-outlined">install_desktop</span>
-          <span>インストール</span>
-        </button>
-        <span class="auto-save-indicator" id="autoSaveIndicator"></span>
-        <button class="btn-backup" onclick="quickBackup()" title="データをバックアップ（ファイル出力）">
+        <button class="btn-icon btn-toolbar" onclick="quickBackup()" title="バックアップ">
           <span class="material-symbols-outlined">download</span>
-          <span>バックアップ</span>
         </button>
-        <button class="btn-load" onclick="document.getElementById('loadFile').click()" title="バックアップから復元">
+        <button class="btn-icon btn-toolbar" onclick="document.getElementById('loadFile').click()" title="読込">
           <span class="material-symbols-outlined">folder_open</span>
-          <span>読込</span>
         </button>
         <input type="file" id="loadFile" accept=".json" style="display:none" onchange="importAllData(this)">
-        <button class="btn-icon btn-settings" onclick="openSettings()" title="設定">
+        <button class="btn-icon btn-toolbar" id="installBtn" onclick="installPWA()" title="インストール" style="display:none">
+          <span class="material-symbols-outlined">install_desktop</span>
+        </button>
+        <button class="btn-icon btn-toolbar" onclick="openSettings()" title="設定">
           <span class="material-symbols-outlined">settings</span>
         </button>
       </div>

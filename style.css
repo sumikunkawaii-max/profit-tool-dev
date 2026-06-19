@@ -1757,32 +1757,10 @@ body {
 .history-date { font-weight: 600; font-size: 14px; min-width: 100px; }
 .history-count { font-size: 12px; color: #666; min-width: 50px; }
 
-/* バックアップボタン */
-.btn-backup {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 12px; border-radius: 8px; border: 1px solid #4caf50;
-  background: #e8f5e9; cursor: pointer; font-size: 12px; color: #2e7d32;
-  font-family: var(--font-sans); font-weight: 500;
+/* ツールバーアイコンボタン（統一スタイル） */
+.btn-toolbar {
+  color: var(--on-surface-variant, #666); border: none; background: none;
+  border-radius: 8px; padding: 6px; cursor: pointer; transition: background 0.15s;
 }
-.btn-backup:hover { background: #c8e6c9; }
-.btn-backup .material-symbols-outlined { font-size: 18px; }
-
-/* 読込ボタン */
-.btn-load {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 12px; border-radius: 8px; border: 1px solid #ff9800;
-  background: #fff3e0; cursor: pointer; font-size: 12px; color: #e65100;
-  font-family: var(--font-sans); font-weight: 500;
-}
-.btn-load:hover { background: #ffe0b2; }
-.btn-load .material-symbols-outlined { font-size: 18px; }
-
-/* インストールボタン */
-.btn-install {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 6px 12px; border-radius: 8px; border: 1px solid var(--primary, #1a73e8);
-  background: #e3f2fd; cursor: pointer; font-size: 12px; color: var(--primary, #1a73e8);
-  font-family: var(--font-sans); font-weight: 500;
-}
-.btn-install:hover { background: #bbdefb; }
-.btn-install .material-symbols-outlined { font-size: 18px; }
+.btn-toolbar:hover { background: var(--surface-variant, #f0f0f0); color: var(--on-surface, #333); }
+.btn-toolbar .material-symbols-outlined { font-size: 22px; }
