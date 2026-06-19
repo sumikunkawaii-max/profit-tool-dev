@@ -14,7 +14,7 @@ const ALL_COLUMNS = [
   { id:'asin',     label:'ASIN', fixed:true, sortKey:'asin', w:'95px' },
   { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'140px' },
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
-  { id:'rivals',   label:'ライバル', w:'200px', forceVisible:true },
+  { id:'rivals',   label:'ライバル', w:'260px', forceVisible:true },
   { id:'lowerPrice', label:'下限価格', sortKey:'lowerPrice', filterable:true, w:'75px' },
   { id:'commissionRate', label:'手数料%', w:'55px' },
   { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px' },
@@ -767,19 +767,27 @@ function renderRivalsCell(p) {
 
   // 各ライバル表示
   rivals.forEach(r => {
-    // 価格差 = ライバル価格 - 自分の価格（マイナス=ライバルが安い→赤、プラス=自分が安い→緑）
     const diff = (myPrice && r.currentPrice) ? r.currentPrice - myPrice : null;
     const diffClass = diff !== null ? (diff > 0 ? 'positive' : diff < 0 ? 'negative' : '') : '';
     const diffText = diff !== null ? `${diff > 0 ? '+' : ''}${diff.toLocaleString()}` : '-';
-    const shortAsin = r.asin ? r.asin.substring(0, 4) + '...' + r.asin.substring(7) : '';
+    const shortTitle = r.title ? (r.title.length > 25 ? r.title.substring(0, 25) + '...' : r.title) : '';
     html += `<div class="rival-item">`;
-    html += `<span class="rival-asin">${esc(shortAsin)}</span>`;
+    // 画像
+    if (r.imageUrl) {
+      html += `<img class="rival-img" src="${esc(r.imageUrl)}" loading="lazy" onerror="this.style.display='none'">`;
+    } else {
+      html += `<div class="rival-img-placeholder"></div>`;
+    }
+    // 商品情報
+    html += `<div class="rival-info">`;
+    html += `<a class="rival-title" href="https://www.amazon.co.jp/dp/${r.asin}" target="_blank" rel="noopener" title="${esc(r.title||'')}">${esc(shortTitle)}</a>`;
+    html += `<div class="rival-price-row">`;
     html += `<span class="rival-price">${r.currentPrice != null ? '¥' + r.currentPrice.toLocaleString() : '-'}</span>`;
     html += `<span class="rival-diff ${diffClass}">${diffText}</span>`;
-    // 販売数表示
     if (r.monthlySold) html += `<span class="rival-sales">月${r.monthlySold}個</span>`;
-    // 在庫切れ表示（出品者数が0の場合）
     if (r.sellerCount === 0) html += `<span class="rival-oos">在庫切れ</span>`;
+    html += `</div>`;
+    html += `</div>`;
     html += `<button class="rival-remove" onclick="removeRival('${p.asin}','${r.asin}')" title="削除">x</button>`;
     html += `</div>`;
   });
@@ -835,6 +843,7 @@ async function addRivalDialog(parentAsin) {
   p.rivals.push({
     asin: cleaned,
     title: keepaData.title || '',
+    imageUrl: keepaData.imageUrl || null,
     currentPrice: rivalPrice,
     monthlySold: keepaData.monthlySold || keepaData.salesRankDrops90,
     sellerCount: keepaData.avg90NewSellerCount,
@@ -885,6 +894,7 @@ async function updateRivalsForProduct(p) {
       if (keepaData.error) continue;
       rival.currentPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? rival.currentPrice;
       rival.title = keepaData.title || rival.title;
+      rival.imageUrl = keepaData.imageUrl || rival.imageUrl;
       rival.monthlySold = keepaData.monthlySold || keepaData.salesRankDrops90;
       rival.sellerCount = keepaData.avg90NewSellerCount;
       rival.lastUpdated = new Date().toISOString();
