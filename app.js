@@ -8,27 +8,27 @@ let appSettings = {};
 
 // === 列定義 ===
 const ALL_COLUMNS = [
-  // メインテーブルに表示（デフォルト表示）
+  // 固定列
   { id:'check',    label:'', fixed:true, w:'30px' },
   { id:'image',    label:'画像', fixed:true, w:'50px' },
   { id:'title',    label:'商品名', fixed:true, sortKey:'title' },
   { id:'asin',     label:'ASIN', fixed:true, sortKey:'asin', w:'95px' },
+  // デフォルト表示列
+  { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'180px' },
   { id:'listingPrice', label:'出品価格', sortKey:'listingPrice', filterable:true, w:'100px' },
-  { id:'rivals',   label:'ライバル', w:'260px', forceVisible:true },
+  { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px' },
+  { id:'profit',   label:'粗利', w:'80px' },
   { id:'sales',    label:'販売数', sortKey:'salesRankDrops90', w:'55px' },
   { id:'sellers',  label:'出品者', sortKey:'avg90NewSellerCount', filterable:true, w:'50px' },
   { id:'notes',    label:'メモ', filterable:true, w:'120px' },
   { id:'actions',  label:'操作', fixed:true, w:'80px' },
-  // 詳細モーダルで見れるのでデフォルト非表示（設定から表示可能）
-  { id:'supplier', label:'仕入先', sortKey:'supplierPlatform', filterable:true, filterKey:'supplierUrl', w:'140px', defaultHidden:true },
+  // デフォルト非表示（設定から表示可能）
   { id:'lowerPrice', label:'下限価格', sortKey:'lowerPrice', filterable:true, w:'75px', defaultHidden:true },
   { id:'commissionRate', label:'手数料%', w:'55px', defaultHidden:true },
-  { id:'purchasePrice', label:'仕入れ値', sortKey:'purchasePrice', filterable:true, w:'75px', defaultHidden:true },
   { id:'points',   label:'ポイント', sortKey:'points', filterable:true, w:'65px', defaultHidden:true },
   { id:'ptPrice',  label:'PT込み', w:'70px', defaultHidden:true },
   { id:'shipping', label:'配送/送料', filterable:true, filterKey:'shippingMethod', w:'110px', defaultHidden:true },
   { id:'quantity', label:'個数', sortKey:'quantity', filterable:true, w:'50px', defaultHidden:true },
-  { id:'profit',   label:'粗利', w:'80px', defaultHidden:true },
   { id:'size',     label:'サイズ', w:'90px', defaultHidden:true },
   { id:'brand',    label:'ブランド', sortKey:'brand', filterable:true, w:'90px', defaultHidden:true },
   { id:'category', label:'カテゴリ', sortKey:'category', filterable:true, w:'100px', defaultHidden:true },
@@ -50,8 +50,6 @@ function getColumnConfig() {
       .map(s => { const base = ALL_COLUMNS.find(a => a.id === s.id); return base ? { ...base, ...s } : null; })
       .filter(Boolean);
     ALL_COLUMNS.forEach(a => { if (!ids.includes(a.id)) merged.push({ ...a, visible: true }); });
-    // forceVisible列は常に表示
-    merged.forEach(c => { const base = ALL_COLUMNS.find(a => a.id === c.id); if (base && base.forceVisible) c.visible = true; });
     return merged;
   }
   return ALL_COLUMNS.map(c => ({ ...c, visible: c.defaultHidden ? false : true }));
@@ -80,7 +78,6 @@ const DEFAULT_SETTINGS = {
     {name:'ビューティー',rate:10},{name:'スポーツ＆アウトドア',rate:10},{name:'DIY・工具',rate:15},{name:'その他',rate:10},
   ],
   csvDefaults: { condition:'新品',shippingRoute:'自己発送',leadTime:1,paymentLimit:0,priceReductionPercent:10,priceReductionEnabled:false,priceRevisionMode:'なし',description:'',deliverySettings:'' },
-  pricingRules: { mode: 'undercut', undercutAmount: 50, minProfitRate: 20, minProfitAmount: 300, useMinProfit: true },
   columnConfig: null,
 };
 
@@ -144,93 +141,19 @@ function parseKeepaProduct(product) {
   };
 }
 
-// === Amazon直接価格取得（Keepaトークン不要） ===
-const CORS_PROXIES = [
-  url => `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`,
-  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
-];
-
-async function fetchAmazonPriceDirect(asin) {
-  const amazonUrl = `https://www.amazon.co.jp/dp/${asin}`;
-  for (const proxy of CORS_PROXIES) {
-    try {
-      const res = await fetch(proxy(amazonUrl), { signal: AbortSignal.timeout(15000) });
-      let html = '';
-      if (res.headers.get('content-type')?.includes('json')) {
-        const data = await res.json();
-        html = data.contents || '';
-      } else {
-        html = await res.text();
-      }
-      if (!html) continue;
-
-      // 価格をHTMLからパース（複数パターンに対応）
-      let price = null;
-
-      // パターン1: a-price-whole（現在の主要パターン）
-      const m1 = html.match(/class="a-price-whole">([0-9,]+)/);
-      if (m1) price = parseInt(m1[1].replace(/,/g, ''));
-
-      // パターン2: priceblock
-      if (!price) {
-        const m2 = html.match(/id="priceblock_ourprice"[^>]*>.*?([0-9,]+)/);
-        if (m2) price = parseInt(m2[1].replace(/,/g, ''));
-      }
-
-      // パターン3: a-offscreen内の価格
-      if (!price) {
-        const m3 = html.match(/class="a-offscreen">\s*&yen;\s*([0-9,]+)/);
-        if (m3) price = parseInt(m3[1].replace(/,/g, ''));
-      }
-
-      // パターン4: 円マーク付き
-      if (!price) {
-        const m4 = html.match(/￥([0-9,]+)/);
-        if (m4) price = parseInt(m4[1].replace(/,/g, ''));
-      }
-
-      // 商品名取得
-      let title = null;
-      const titleMatch = html.match(/<title[^>]*>([^<]+)</);
-      if (titleMatch) {
-        title = titleMatch[1].replace(/\s*(\||:|-)\s*Amazon.*$/i, '').trim();
-      }
-      const titleMatch2 = html.match(/id="productTitle"[^>]*>\s*([^<]+)/);
-      if (titleMatch2) title = titleMatch2[1].trim();
-
-      // 画像取得
-      let imageUrl = null;
-      const imgMatch = html.match(/id="landingImage"[^>]*src="([^"]+)"/);
-      if (imgMatch) imageUrl = imgMatch[1];
-      if (!imageUrl) {
-        const imgMatch2 = html.match(/data-old-hires="([^"]+)"/);
-        if (imgMatch2) imageUrl = imgMatch2[1];
-      }
-
-      if (price) {
-        return { asin, title, imageUrl, currentPrice: price, source: 'amazon-direct' };
-      }
-    } catch {
-      // このプロキシ失敗、次を試す
-      continue;
-    }
-  }
-  return { error: 'Amazon価格取得に失敗しました（全プロキシ失敗）' };
-}
-
-const USER_FIELDS = ['supplier','supplierPlatform','supplierShop','supplierUrl','listingPrice','lowerPrice',
+const USER_FIELDS = ['supplier','supplierPlatform','supplierShop','supplierUrl','suppliers','listingPrice','lowerPrice',
   'purchasePrice','points','purchasePriceWithPoints','quantity','shippingMethod','shippingCost',
-  'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes','rivals'];
+  'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes'];
 
 // === 初期化 ===
 document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('asinInput').addEventListener('keydown', e => { if (e.key === 'Enter') handleFetch(); });
   document.addEventListener('keydown', e => { if (e.key === 'Escape') { closeModal(); closeSettings(); closeCsvModal(); } });
   appSettings = loadSettingsFromStorage();
-  // ライバル列の位置を修正（出品価格の隣に強制配置）
-  if (!appSettings._layoutV2) {
+  // 列設定リセット（V3: シンプル化対応）
+  if (!appSettings._layoutV3) {
     appSettings.columnConfig = null;
-    appSettings._layoutV2 = true;
+    appSettings._layoutV3 = true;
     saveSettingsToStorage();
   }
   products = loadProductsFromStorage();
@@ -274,7 +197,7 @@ async function handleFetch() {
   } else {
     const np = { ...keepaData };
     USER_FIELDS.forEach(f => { np[f] = null; });
-    np.supplier = ''; np.notes = ''; np.commissionRate = 10; np.priceReductionEnabled = false; np.rivals = [];
+    np.supplier = ''; np.notes = ''; np.commissionRate = 10; np.priceReductionEnabled = false; np.suppliers = [];
     np.lastUpdated = now; np.createdAt = now;
     products.push(np);
     showToast('商品を追加しました');
@@ -407,20 +330,40 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'title': return `<a class="product-name" href="https://www.amazon.co.jp/dp/${p.asin}" target="_blank" rel="noopener">${esc(p.title)}</a>`;
     case 'asin': return `<span class="asin-copy" onclick="copyAsin('${p.asin}',this)" title="コピー">${p.asin}</span>`;
     case 'supplier': {
-      const pf = p.supplierPlatform || '';
-      const shop = p.supplierShop || '';
-      const url = p.supplierUrl || '';
-      // URLが未判定でsupplierShopにURL入ってる場合も対応
-      const currentUrl = url || (shop && shop.startsWith('http') ? shop : '') || '';
-      const displayPf = detectPlatform(currentUrl);
-      const displayShop = displayPf ? extractShopName(currentUrl) : '';
-      return `<div class="supplier-cell-v">
-        <div class="supplier-top">${displayPf ? `<span class="supplier-platform ${getPlatformClass(displayPf)}">${esc(displayPf)}</span>` : ''}${displayShop ? `<span class="supplier-shop">${esc(displayShop)}</span>` : ''}</div>
-        <div class="supplier-url-row">
-          <input class="supplier-url-input" type="text" value="${escA(currentUrl)}" placeholder="URLを貼り付け" data-asin="${p.asin}" onchange="handleSupplierInput(this)">
-          ${currentUrl ? `<a class="supplier-open" href="${escA(currentUrl)}" target="_blank" rel="noopener" title="開く">↗</a>` : ''}
-        </div>
-      </div>`;
+      const suppliers = p.suppliers || [];
+      // 旧データの互換: supplierUrlがあってsuppliersが空なら移行
+      if (suppliers.length === 0 && p.supplierUrl) {
+        const platform = detectPlatform(p.supplierUrl);
+        const shop = extractShopName(p.supplierUrl);
+        suppliers.push({ url: p.supplierUrl, platform, shop });
+        p.suppliers = suppliers;
+        saveProductsToStorage();
+      }
+
+      let html = '<div class="suppliers-cell">';
+
+      suppliers.forEach((s, i) => {
+        const pfClass = getPlatformClass(s.platform);
+        html += `<div class="supplier-row">`;
+        html += `<span class="supplier-platform ${pfClass}">${esc(s.platform || '?')}</span>`;
+        if (s.shop) html += `<span class="supplier-shop-name">${esc(s.shop.substring(0, 15))}</span>`;
+        html += `<a class="supplier-open-btn" href="${escA(s.url)}" target="_blank" rel="noopener" title="${escA(s.url)}">開く</a>`;
+        html += `<button class="supplier-remove-btn" onclick="removeSupplier('${p.asin}',${i})" title="削除">x</button>`;
+        html += `</div>`;
+      });
+
+      // 一括で開くボタン（2件以上ある場合）
+      if (suppliers.length >= 2) {
+        html += `<button class="supplier-bulk-open" onclick="openAllSuppliers('${p.asin}')" title="全ての仕入先を開く">全て開く (${suppliers.length}件)</button>`;
+      }
+
+      // 追加ボタン
+      html += `<div class="supplier-add-row">`;
+      html += `<input class="supplier-add-input" type="text" placeholder="URLを貼り付け" data-asin="${p.asin}" onkeydown="if(event.key==='Enter')addSupplier(this)">`;
+      html += `</div>`;
+
+      html += '</div>';
+      return html;
     }
     case 'listingPrice': {
       const cartPrice = p.currentBuyBoxPrice ?? p.currentNewPrice;
@@ -430,7 +373,6 @@ function renderCellContent(colId, p, shippingOpts) {
       return `<div class="listing-price-cell">
         <input class="inline-input inline-input-num" type="number" value="${p.listingPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="listingPrice" onchange="saveInline(this)">
         ${cartPrice ? `<div class="cart-price-hint ${badgeCls}"><span class="cart-badge">${badgeLabel}</span> ¥${cartPrice.toLocaleString()}</div>` : ''}
-        <a class="sc-edit-link" href="#" onclick="openSellerCentral('${p.asin}');return false;" title="ASINをコピーしてセラーセントラルを開く">SCで変更</a>
       </div>`;
     }
     case 'lowerPrice': return `<input class="inline-input inline-input-num" type="number" value="${p.lowerPrice??''}" placeholder="¥" data-asin="${p.asin}" data-field="lowerPrice" onchange="saveInline(this)">`;
@@ -457,7 +399,6 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'rank': return `<span class="cell-rank">${fmtRank(p.avg90SalesRank)}</span>`;
     case 'rating': return `<span class="cell-number">${p.rating!=null?p.rating.toFixed(1):'<span class="cell-null">-</span>'}</span>`;
     case 'reviews': return `<span class="cell-number">${fmtNum(p.reviewCount)}</span>`;
-    case 'rivals': return renderRivalsCell(p);
     case 'notes': return `<textarea class="inline-memo" data-asin="${p.asin}" data-field="notes" onchange="saveInline(this)">${esc(p.notes||'')}</textarea>`;
     case 'updated': return `<span class="cell-date">${fmtDate(p.lastUpdated)}</span>`;
     case 'actions': return `<div class="action-btns"><button class="btn-icon btn-detail" onclick="openDetail('${p.asin}')" title="詳細"><span class="material-symbols-outlined">info</span></button><button class="btn-icon btn-refresh" onclick="refreshProduct('${p.asin}')" title="再取得"><span class="material-symbols-outlined">sync</span></button><button class="btn-icon btn-delete" onclick="deleteProduct('${p.asin}')" title="削除"><span class="material-symbols-outlined">delete</span></button></div>`;
@@ -577,18 +518,8 @@ async function bulkRefresh() {
       ok++;
     }
   }
-  // 選択商品のライバル価格も更新
-  let rivalsOk = 0;
-  for (const asin of asins) {
-    const p = products.find(x => x.asin === asin);
-    if (p && p.rivals && p.rivals.length) {
-      const cnt = await updateRivalsForProduct(p);
-      rivalsOk += cnt;
-    }
-  }
   saveProductsToStorage();
-  const rivalMsg = rivalsOk > 0 ? ` (ライバル${rivalsOk}件)` : '';
-  showLoading(false); showToast(`${ok}件更新しました${rivalMsg}`);
+  showLoading(false); showToast(`${ok}件更新しました`);
   renderAll();
   suggestShipping(asins);
 }
@@ -644,26 +575,23 @@ function suggestShipping(asins) {
 
 function bulkOpenAmazon() { const a=[...selectedAsins]; if(!a.length) return; if(a.length>10&&!confirm(`${a.length}件開きますか？`)) return; a.forEach(x => window.open(`https://www.amazon.co.jp/dp/${x}`,'_blank')); }
 function bulkOpenSupplier() {
-  let opened=0;
-  [...selectedAsins].forEach(a => {
-    const p = products.find(x => x.asin === a);
+  let opened = 0;
+  [...selectedAsins].forEach(asin => {
+    const p = products.find(x => x.asin === asin);
     if (!p) return;
-    if (p.supplierUrl) { window.open(p.supplierUrl, '_blank'); opened++; }
-    else if (p.supplierShop) { window.open(`https://www.google.com/search?q=${encodeURIComponent((p.supplierPlatform||'')+' '+p.supplierShop+' '+p.title)}`, '_blank'); opened++; }
+    const suppliers = p.suppliers || [];
+    if (suppliers.length > 0) {
+      suppliers.forEach(s => { window.open(s.url, '_blank'); opened++; });
+    } else if (p.supplierUrl) {
+      window.open(p.supplierUrl, '_blank'); opened++;
+    }
   });
-  if(!opened) showToast('仕入先が未入力です','error');
+  if (!opened) showToast('仕入先が未入力です', 'error');
+  else showToast(`${opened}件開きました`);
 }
 
 // === ASINコピー ===
 function copyAsin(asin,el) { navigator.clipboard.writeText(asin).then(()=>{ el.classList.add('copied'); el.textContent='Copied!'; setTimeout(()=>{el.classList.remove('copied');el.textContent=asin;},1000); }); }
-
-// セラーセントラルの在庫管理ページを開く（ASINを自動コピー）
-function openSellerCentral(asin) {
-  navigator.clipboard.writeText(asin).then(() => {
-    showToast(`${asin} をコピーしました。SCの検索欄に貼り付けてください`);
-    window.open('https://sellercentral.amazon.co.jp/inventory', '_blank');
-  });
-}
 
 // === フィルター・ソート ===
 function toggleFilterRow() { const r=document.getElementById('filterRow'); const btn=document.querySelector('.btn-toggle-filter'); if(r.style.display==='none'){r.style.display='';btn.classList.add('active')}else{r.style.display='none';btn.classList.remove('active');document.querySelectorAll('.col-filter').forEach(i=>i.value='');colFilters={};renderTable();} }
@@ -752,35 +680,44 @@ const SUPPLIER_PATTERNS = [
   { pattern: /qoo10\.jp/, platform: 'Qoo10', shopExtract: url => { const m = url.match(/qoo10\.jp\/([^/?]+)/); return m ? m[1] : null; } },
 ];
 
-async function handleSupplierInput(el) {
-  const asin = el.dataset.asin;
-  const value = el.value.trim();
+// 仕入先を追加
+function addSupplier(inputEl) {
+  const asin = inputEl.dataset.asin;
+  const url = inputEl.value.trim();
+  if (!url || !url.startsWith('http')) { showToast('URLを入力してください', 'error'); return; }
 
-  // URL判定
-  if (value.startsWith('http')) {
-    const match = SUPPLIER_PATTERNS.find(p => p.pattern.test(value));
-    if (match) {
-      const shopName = match.shopExtract(value) || '';
-      const updates = {
-        supplierPlatform: match.platform,
-        supplierShop: shopName,
-        supplierUrl: value,
-      };
-      await patchProduct(asin, updates);
-      const p = products.find(x => x.asin === asin);
-      if (p) { Object.assign(p, updates); }
-      flashSaved(el);
-      showToast(`${match.platform} - ${shopName} を自動設定`);
-      renderTable();
-      return;
-    }
-  }
-
-  // 通常のテキスト入力
-  await patchProduct(asin, { supplierShop: value });
   const p = products.find(x => x.asin === asin);
-  if (p) p.supplierShop = value;
-  flashSaved(el);
+  if (!p) return;
+  if (!p.suppliers) p.suppliers = [];
+
+  // 重複チェック
+  if (p.suppliers.some(s => s.url === url)) { showToast('既に登録済みのURLです', 'error'); return; }
+
+  const platform = detectPlatform(url);
+  const shop = extractShopName(url);
+
+  p.suppliers.push({ url, platform, shop });
+  saveProductsToStorage();
+  inputEl.value = '';
+  showToast(`${platform || '仕入先'} を追加しました`);
+  renderAll();
+}
+
+// 仕入先を削除
+function removeSupplier(asin, index) {
+  const p = products.find(x => x.asin === asin);
+  if (!p || !p.suppliers) return;
+  p.suppliers.splice(index, 1);
+  saveProductsToStorage();
+  renderAll();
+}
+
+// 全仕入先を一括で開く
+function openAllSuppliers(asin) {
+  const p = products.find(x => x.asin === asin);
+  if (!p || !p.suppliers || !p.suppliers.length) return;
+  p.suppliers.forEach(s => window.open(s.url, '_blank'));
+  showToast(`${p.suppliers.length}件の仕入先を開きました`);
 }
 
 function filterBySupplier(supplier) {
@@ -820,210 +757,6 @@ function formatSizeDisplay(p) {
   }
   if (p.weightG) return `<span class="size-weight">${p.weightG>=1000?(p.weightG/1000).toFixed(1)+'kg':p.weightG+'g'}</span>`;
   return '<span class="size-unknown">サイズ不明</span>';
-}
-
-// === ライバル価格比較 ===
-
-// ライバルセルの描画
-function renderRivalsCell(p) {
-  const rivals = p.rivals || [];
-  const myPrice = p.listingPrice;
-  let html = '<div class="rivals-cell">';
-
-  if (rivals.length > 0 && myPrice) {
-    // 価格ポジション判定
-    const allPrices = [myPrice, ...rivals.map(r => r.currentPrice).filter(v => v != null)];
-    const minPrice = Math.min(...allPrices);
-    const maxPrice = Math.max(...allPrices);
-    let posClass = 'middle', posLabel = '中間';
-    if (myPrice <= minPrice) { posClass = 'cheapest'; posLabel = '最安'; }
-    else if (myPrice >= maxPrice) { posClass = 'expensive'; posLabel = '高値'; }
-    html += `<div class="rivals-position"><span class="badge-position ${posClass}">${posLabel}</span></div>`;
-  }
-
-  // 各ライバル表示
-  rivals.forEach(r => {
-    const diff = (myPrice && r.currentPrice) ? r.currentPrice - myPrice : null;
-    const diffClass = diff !== null ? (diff > 0 ? 'positive' : diff < 0 ? 'negative' : '') : '';
-    const diffText = diff !== null ? `${diff > 0 ? '+' : ''}${diff.toLocaleString()}` : '-';
-    const shortTitle = r.title ? (r.title.length > 25 ? r.title.substring(0, 25) + '...' : r.title) : '';
-    html += `<div class="rival-item">`;
-    // 画像
-    if (r.imageUrl) {
-      html += `<img class="rival-img" src="${esc(r.imageUrl)}" loading="lazy" onerror="this.style.display='none'">`;
-    } else {
-      html += `<div class="rival-img-placeholder"></div>`;
-    }
-    // 商品情報
-    html += `<div class="rival-info">`;
-    html += `<a class="rival-title" href="https://www.amazon.co.jp/dp/${r.asin}" target="_blank" rel="noopener" title="${esc(r.title||'')}">${esc(shortTitle)}</a>`;
-    html += `<div class="rival-price-row">`;
-    html += `<span class="rival-price">${r.currentPrice != null ? '¥' + r.currentPrice.toLocaleString() : '-'}</span>`;
-    html += `<span class="rival-diff ${diffClass}">${diffText}</span>`;
-    if (r.monthlySold) html += `<span class="rival-sales">月${r.monthlySold}個</span>`;
-    if (r.sellerCount === 0) html += `<span class="rival-oos">在庫切れ</span>`;
-    html += `</div>`;
-    html += `</div>`;
-    html += `<button class="rival-remove" onclick="removeRival('${p.asin}','${r.asin}')" title="削除">x</button>`;
-    html += `</div>`;
-  });
-
-  // 最安マッチボタン（ライバルが1件以上あり、かつライバルの最安が自分より安い場合）
-  if (rivals.length > 0) {
-    const rivalPrices = rivals.map(r => r.currentPrice).filter(v => v != null);
-    if (rivalPrices.length > 0) {
-      const lowestRival = Math.min(...rivalPrices);
-      if (myPrice == null || lowestRival < myPrice) {
-        html += `<button class="rival-match-btn" onclick="matchLowestRival('${p.asin}')" title="ライバル最安価格を出品価格に反映">最安マッチ ¥${lowestRival.toLocaleString()}</button>`;
-      }
-    }
-  }
-
-  html += `<button class="rival-add-btn" onclick="addRivalDialog('${p.asin}')">+ 追加</button>`;
-  html += '</div>';
-  return html;
-}
-
-// ライバル追加ダイアログ
-async function addRivalDialog(parentAsin) {
-  const rivalAsin = prompt('ライバル商品のASINを入力してください:');
-  if (!rivalAsin) return;
-  const cleaned = rivalAsin.trim().toUpperCase();
-  if (!/^[A-Z0-9]{10}$/.test(cleaned)) {
-    showToast('ASINは英数字10桁で入力してください', 'error');
-    return;
-  }
-  // 自分自身は追加不可
-  if (cleaned === parentAsin) {
-    showToast('自分自身をライバルに追加できません', 'error');
-    return;
-  }
-  const p = products.find(x => x.asin === parentAsin);
-  if (!p) return;
-  if (!p.rivals) p.rivals = [];
-  // 重複チェック
-  if (p.rivals.some(r => r.asin === cleaned)) {
-    showToast('既に登録済みのASINです', 'error');
-    return;
-  }
-
-  showLoading(true);
-
-  // Keepaが設定済みならKeepaを使う、なければAmazon直接取得
-  let rivalData = null;
-  if (appSettings.keepaApiKey) {
-    const keepaData = await fetchFromKeepa(cleaned);
-    if (!keepaData.error) {
-      rivalData = {
-        asin: cleaned,
-        title: keepaData.title || '',
-        imageUrl: keepaData.imageUrl || null,
-        currentPrice: keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? null,
-        monthlySold: keepaData.monthlySold || keepaData.salesRankDrops90,
-        sellerCount: keepaData.avg90NewSellerCount,
-        lastUpdated: new Date().toISOString()
-      };
-    }
-  }
-
-  // Keepa失敗またはKeepa未設定 → Amazon直接取得（トークン不要）
-  if (!rivalData) {
-    const directData = await fetchAmazonPriceDirect(cleaned);
-    if (directData.error) {
-      showLoading(false);
-      showToast(directData.error, 'error');
-      return;
-    }
-    rivalData = {
-      asin: cleaned,
-      title: directData.title || '',
-      imageUrl: directData.imageUrl || null,
-      currentPrice: directData.currentPrice,
-      monthlySold: null,
-      sellerCount: null,
-      lastUpdated: new Date().toISOString()
-    };
-  }
-
-  showLoading(false);
-  p.rivals.push(rivalData);
-  saveProductsToStorage();
-  showToast(`ライバル ${cleaned} を追加しました`);
-  renderAll();
-}
-
-// ライバル削除
-function removeRival(parentAsin, rivalAsin) {
-  if (!confirm(`ライバル ${rivalAsin} を削除しますか？`)) return;
-  const p = products.find(x => x.asin === parentAsin);
-  if (!p || !p.rivals) return;
-  p.rivals = p.rivals.filter(r => r.asin !== rivalAsin);
-  saveProductsToStorage();
-  showToast('ライバルを削除しました');
-  renderAll();
-}
-
-// 最安マッチ: ライバルの最安価格を出品価格に反映
-function matchLowestRival(parentAsin) {
-  const p = products.find(x => x.asin === parentAsin);
-  if (!p || !p.rivals || !p.rivals.length) return;
-  const rivalPrices = p.rivals.map(r => r.currentPrice).filter(v => v != null);
-  if (!rivalPrices.length) return;
-  const lowestPrice = Math.min(...rivalPrices);
-  p.listingPrice = lowestPrice;
-  // 下限価格も連動更新
-  const pct = p.lowerPricePercent || (appSettings.csvDefaults?.priceReductionEnabled ? appSettings.csvDefaults.priceReductionPercent : null);
-  const enabled = p.priceReductionEnabled || appSettings.csvDefaults?.priceReductionEnabled;
-  if (enabled && pct) {
-    p.lowerPrice = Math.round(lowestPrice * (1 - pct / 100));
-  }
-  saveProductsToStorage();
-  showToast(`出品価格を ¥${lowestPrice.toLocaleString()} に更新しました`);
-  renderAll();
-}
-
-// 単一商品のライバル価格更新
-async function updateRivalsForProduct(p) {
-  if (!p.rivals || !p.rivals.length) return 0;
-  let updated = 0;
-  for (const rival of p.rivals) {
-    try {
-      let success = false;
-
-      // Keepaが設定済みならKeepaを試す
-      if (appSettings.keepaApiKey) {
-        const keepaData = await fetchFromKeepa(rival.asin);
-        if (!keepaData.error) {
-          rival.currentPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? rival.currentPrice;
-          rival.title = keepaData.title || rival.title;
-          rival.imageUrl = keepaData.imageUrl || rival.imageUrl;
-          rival.monthlySold = keepaData.monthlySold || keepaData.salesRankDrops90;
-          rival.sellerCount = keepaData.avg90NewSellerCount;
-          rival.lastUpdated = new Date().toISOString();
-          success = true;
-        }
-      }
-
-      // Keepa失敗または未設定 → Amazon直接取得（トークン不要）
-      if (!success) {
-        const directData = await fetchAmazonPriceDirect(rival.asin);
-        if (!directData.error && directData.currentPrice) {
-          rival.currentPrice = directData.currentPrice;
-          rival.title = directData.title || rival.title;
-          rival.imageUrl = directData.imageUrl || rival.imageUrl;
-          rival.lastUpdated = new Date().toISOString();
-          success = true;
-        }
-      }
-
-      if (success) updated++;
-      // レート制限対策: 1秒待機
-      await new Promise(r => setTimeout(r, 1000));
-    } catch {
-      // エラー時はスキップ
-    }
-  }
-  return updated;
 }
 
 // === 詳細モーダル ===
@@ -1136,39 +869,6 @@ function renderSettingsTab() {
         <p class="settings-desc">全ての商品データと設定を削除します。この操作は取り消せません。</p>
         <button class="btn-danger" onclick="clearAllData()"><span class="material-symbols-outlined">delete_forever</span>全データ削除</button>
       </div>
-    </div>`;
-  } else if(currentSettingsTab==='pricing') {
-    loadSettings();
-    const pr = appSettings.pricingRules || {};
-    body.innerHTML=`<div class="settings-section"><h4 class="settings-label">価格自動調整ルール</h4>
-      <div class="pricing-rules">
-        <div style="margin-bottom:12px;font-weight:500;font-size:13px">価格調整モード</div>
-        <label class="pricing-rule-option">
-          <input type="radio" name="pricingMode" value="undercut" ${pr.mode!=='match'&&pr.mode!=='manual'?'checked':''}>
-          ライバル最安より <input type="number" id="prUndercutAmount" value="${pr.undercutAmount||50}" style="width:60px;padding:4px 8px;border:1px solid var(--outline,#ddd);border-radius:6px;font-size:13px;margin:0 4px"> 円安く
-        </label>
-        <label class="pricing-rule-option">
-          <input type="radio" name="pricingMode" value="match" ${pr.mode==='match'?'checked':''}>
-          ライバル最安と同額
-        </label>
-        <label class="pricing-rule-option">
-          <input type="radio" name="pricingMode" value="manual" ${pr.mode==='manual'?'checked':''}>
-          手動（自動調整しない）
-        </label>
-        <div class="pricing-min-section" style="margin-top:12px">
-          <div style="font-weight:500;font-size:13px;margin-bottom:8px">利益を守る設定</div>
-          <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin-bottom:8px">
-            <input type="checkbox" id="prUseMinProfit" ${pr.useMinProfit?'checked':''} style="width:16px;height:16px;accent-color:var(--primary)">
-            利益率下限を有効にする
-          </label>
-          <div class="pricing-min-row">
-            <div class="field-group" style="flex:1"><label style="font-size:12px;color:#666;display:block;margin-bottom:4px">利益率下限</label><input type="number" id="prMinProfitRate" value="${pr.minProfitRate||20}" style="width:100%;padding:6px 8px;border:1px solid var(--outline,#ddd);border-radius:6px"> %</div>
-            <div class="field-group" style="flex:1"><label style="font-size:12px;color:#666;display:block;margin-bottom:4px">利益額下限</label><input type="number" id="prMinProfitAmount" value="${pr.minProfitAmount||300}" style="width:100%;padding:6px 8px;border:1px solid var(--outline,#ddd);border-radius:6px"> 円</div>
-          </div>
-          <p style="font-size:11px;color:#999;margin-top:8px">※ 利益率または利益額がこの数値以下になる場合、値下げしません</p>
-        </div>
-      </div>
-      <div style="margin-top:16px"><button class="btn-primary" onclick="savePricingSettings()"><span class="material-symbols-outlined">save</span>保存</button></div>
     </div>`;
   } else if(currentSettingsTab==='columns') {
     const config = getColumnConfig();
@@ -1353,28 +1053,12 @@ async function triggerUpdateAll() {
     if ((i+1) % 10 === 0) { saveProductsToStorage(); await new Promise(r => setTimeout(r, 2000)); }
   }
   saveProductsToStorage();
-  // ライバル価格も更新
-  const rivalsTotal = products.reduce((sum, p) => sum + (p.rivals ? p.rivals.length : 0), 0);
-  let rivalsOk = 0;
-  if (rivalsTotal > 0) {
-    statusEl.textContent = 'ライバル価格更新中...';
-    for (let i = 0; i < products.length; i++) {
-      if (products[i].rivals && products[i].rivals.length) {
-        statusEl.textContent = `ライバル更新 ${i+1}/${products.length}...`;
-        const cnt = await updateRivalsForProduct(products[i]);
-        rivalsOk += cnt;
-        if ((i+1) % 5 === 0) { saveProductsToStorage(); await new Promise(r => setTimeout(r, 1000)); }
-      }
-    }
-    saveProductsToStorage();
-  }
   updateRunning = false;
   btn.classList.remove('running');
   document.getElementById('updateLabel').textContent = '全商品更新';
-  const rivalMsg = rivalsOk > 0 ? `, ライバル${rivalsOk}件` : '';
-  statusEl.textContent = `完了: ${ok}成功${err?'/'+err+'失敗':''}${rivalMsg}`;
+  statusEl.textContent = `完了: ${ok}成功${err?'/'+err+'失敗':''}`;
   statusEl.className = 'update-status' + (err ? ' has-error' : '');
-  showToast(`更新完了: 成功${ok}件${err?', 失敗'+err+'件':''}${rivalMsg}`, err ? 'error' : 'success');
+  showToast(`更新完了: 成功${ok}件${err?', 失敗'+err+'件':''}`, err ? 'error' : 'success');
   renderAll();
 }
 
@@ -1423,119 +1107,6 @@ function clearAllData() {
   showToast('全データを削除しました');
 }
 
-// === 価格ルール保存 ===
-function savePricingSettings() {
-  const mode = document.querySelector('input[name="pricingMode"]:checked')?.value || 'undercut';
-  appSettings.pricingRules = {
-    mode,
-    undercutAmount: Number(document.getElementById('prUndercutAmount').value) || 50,
-    minProfitRate: Number(document.getElementById('prMinProfitRate').value) || 20,
-    minProfitAmount: Number(document.getElementById('prMinProfitAmount').value) || 300,
-    useMinProfit: document.getElementById('prUseMinProfit').checked,
-  };
-  saveSettingsToStorage();
-  showToast('価格ルールを保存しました');
-}
-
-// === 自動価格計算 ===
-function calcAutoPrice(product) {
-  const rules = appSettings.pricingRules || {};
-  if (rules.mode === 'manual' || !product.rivals || !product.rivals.length) return null;
-
-  const rivalPrices = product.rivals.map(r => r.currentPrice).filter(v => v != null && v > 0);
-  if (!rivalPrices.length) return null;
-
-  const minRivalPrice = Math.min(...rivalPrices);
-
-  let newPrice;
-  if (rules.mode === 'match') {
-    newPrice = minRivalPrice;
-  } else {
-    // undercut: ライバル最安より指定額安くする
-    newPrice = minRivalPrice - (rules.undercutAmount || 50);
-  }
-
-  // 利益率・利益額下限チェック
-  if (rules.useMinProfit) {
-    const cost = product.purchasePriceWithPoints ?? product.purchasePrice;
-    const ship = product.shippingCost || 0;
-    const rate = product.commissionRate ?? 10;
-    if (cost) {
-      const commission = Math.round(newPrice * rate / 100);
-      const profit = newPrice - cost - ship - commission;
-      const profitRate = (profit / newPrice) * 100;
-
-      // 利益率下限から逆算
-      // 売値 = (仕入れ値 + 送料) / (1 - 手数料率/100 - 目標利益率/100)
-      if (rules.minProfitRate && profitRate < rules.minProfitRate) {
-        const divisor = 1 - rate / 100 - rules.minProfitRate / 100;
-        if (divisor > 0) {
-          const minPrice = Math.ceil((cost + ship) / divisor);
-          newPrice = Math.max(newPrice, minPrice);
-        }
-      }
-
-      // 利益額下限から逆算
-      if (rules.minProfitAmount) {
-        const minPriceByAmount = Math.ceil((cost + ship + rules.minProfitAmount) / (1 - rate / 100));
-        newPrice = Math.max(newPrice, minPriceByAmount);
-      }
-    }
-  }
-
-  return Math.round(newPrice);
-}
-
-// === 自動価格調整（一括適用） ===
-function applyAutoPricing() {
-  const rules = appSettings.pricingRules || {};
-  if (rules.mode === 'manual') { showToast('価格ルールが「手動」です。設定を変更してください', 'error'); return; }
-
-  let updated = 0, skipped = 0;
-  products.forEach(p => {
-    if (!p.rivals || !p.rivals.length) { skipped++; return; }
-    const newPrice = calcAutoPrice(p);
-    if (newPrice && newPrice !== p.listingPrice) {
-      p.listingPrice = newPrice;
-      // 下限価格も連動
-      const pct = p.lowerPricePercent || (appSettings.csvDefaults?.priceReductionPercent);
-      if (pct) p.lowerPrice = Math.round(newPrice * (1 - pct / 100));
-      updated++;
-    } else {
-      skipped++;
-    }
-  });
-
-  saveProductsToStorage();
-  renderAll();
-  showToast(`価格調整完了: ${updated}件変更, ${skipped}件スキップ`);
-}
-
-// === セラーセントラル用CSV出力 ===
-function exportSellerCentralCsv() {
-  // 出品価格が設定されている商品をASIN=SKUとして出力
-  const targets = products.filter(p => p.listingPrice);
-  if (!targets.length) { showToast('出品価格が設定された商品がありません', 'error'); return; }
-  const rows = targets.map(p => ({
-    sku: p.asin,
-    price: p.listingPrice,
-    minPrice: p.lowerPrice || '',
-    maxPrice: '',
-    quantity: p.quantity || ''
-  }));
-
-  const header = 'sku\tprice\tminimum-price\tmaximum-price\tquantity';
-  const body = rows.map(r => `${r.sku}\t${r.price}\t${r.minPrice}\t${r.maxPrice}\t${r.quantity}`);
-  const content = [header, ...body].join('\n');
-  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `price-update-${new Date().toISOString().slice(0,10)}.txt`;
-  a.click();
-  URL.revokeObjectURL(url);
-  showToast(`SC用ファイル出力（${rows.length}件）`);
-}
 
 // === UIヘルパー ===
 function showLoading(s){document.getElementById('loadingOverlay').classList.toggle('active',s);document.getElementById('fetchBtn').disabled=s;}
