@@ -34,6 +34,7 @@ const ALL_COLUMNS = [
   { id:'rank',     label:'平均ランク', sortKey:'avg90SalesRank', w:'70px' },
   { id:'rating',   label:'評価', sortKey:'rating', w:'40px' },
   { id:'reviews',  label:'レビュー', sortKey:'reviewCount', w:'55px' },
+  { id:'rivals',   label:'ライバル', w:'200px' },
   { id:'notes',    label:'メモ', filterable:true, w:'120px' },
   { id:'updated',  label:'更新日', sortKey:'lastUpdated', w:'55px' },
   { id:'actions',  label:'操作', fixed:true, w:'80px' },
@@ -140,7 +141,7 @@ function parseKeepaProduct(product) {
 
 const USER_FIELDS = ['supplier','supplierPlatform','supplierShop','supplierUrl','listingPrice','lowerPrice',
   'purchasePrice','points','purchasePriceWithPoints','quantity','shippingMethod','shippingCost',
-  'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes'];
+  'shippingSuggested','commissionRate','lowerPricePercent','priceReductionEnabled','notes','rivals'];
 
 // === 初期化 ===
 document.addEventListener('DOMContentLoaded', () => {
@@ -150,8 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
   products = loadProductsFromStorage();
   checkApiStatus();
   renderAll();
-  // Service Worker登録
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('./sw.js');
+  // Service Workerは使わない（キャッシュ問題回避）
 });
 
 // === データ操作 ===
@@ -189,7 +189,7 @@ async function handleFetch() {
   } else {
     const np = { ...keepaData };
     USER_FIELDS.forEach(f => { np[f] = null; });
-    np.supplier = ''; np.notes = ''; np.commissionRate = 10; np.priceReductionEnabled = false;
+    np.supplier = ''; np.notes = ''; np.commissionRate = 10; np.priceReductionEnabled = false; np.rivals = [];
     np.lastUpdated = now; np.createdAt = now;
     products.push(np);
     showToast('商品を追加しました');
@@ -371,6 +371,7 @@ function renderCellContent(colId, p, shippingOpts) {
     case 'rank': return `<span class="cell-rank">${fmtRank(p.avg90SalesRank)}</span>`;
     case 'rating': return `<span class="cell-number">${p.rating!=null?p.rating.toFixed(1):'<span class="cell-null">-</span>'}</span>`;
     case 'reviews': return `<span class="cell-number">${fmtNum(p.reviewCount)}</span>`;
+    case 'rivals': return renderRivalsCell(p);
     case 'notes': return `<textarea class="inline-memo" data-asin="${p.asin}" data-field="notes" onchange="saveInline(this)">${esc(p.notes||'')}</textarea>`;
     case 'updated': return `<span class="cell-date">${fmtDate(p.lastUpdated)}</span>`;
     case 'actions': return `<div class="action-btns"><button class="btn-icon btn-detail" onclick="openDetail('${p.asin}')" title="詳細"><span class="material-symbols-outlined">info</span></button><button class="btn-icon btn-refresh" onclick="refreshProduct('${p.asin}')" title="再取得"><span class="material-symbols-outlined">sync</span></button><button class="btn-icon btn-delete" onclick="deleteProduct('${p.asin}')" title="削除"><span class="material-symbols-outlined">delete</span></button></div>`;
@@ -490,8 +491,18 @@ async function bulkRefresh() {
       ok++;
     }
   }
+  // 選択商品のライバル価格も更新
+  let rivalsOk = 0;
+  for (const asin of asins) {
+    const p = products.find(x => x.asin === asin);
+    if (p && p.rivals && p.rivals.length) {
+      const cnt = await updateRivalsForProduct(p);
+      rivalsOk += cnt;
+    }
+  }
   saveProductsToStorage();
-  showLoading(false); showToast(`${ok}件更新しました`);
+  const rivalMsg = rivalsOk > 0 ? ` (ライバル${rivalsOk}件)` : '';
+  showLoading(false); showToast(`${ok}件更新しました${rivalMsg}`);
   renderAll();
   suggestShipping(asins);
 }
@@ -715,6 +726,148 @@ function formatSizeDisplay(p) {
   }
   if (p.weightG) return `<span class="size-weight">${p.weightG>=1000?(p.weightG/1000).toFixed(1)+'kg':p.weightG+'g'}</span>`;
   return '<span class="size-unknown">サイズ不明</span>';
+}
+
+// === ライバル価格比較 ===
+
+// ライバルセルの描画
+function renderRivalsCell(p) {
+  const rivals = p.rivals || [];
+  const myPrice = p.listingPrice;
+  let html = '<div class="rivals-cell">';
+
+  if (rivals.length > 0 && myPrice) {
+    // 価格ポジション判定
+    const allPrices = [myPrice, ...rivals.map(r => r.currentPrice).filter(v => v != null)];
+    const minPrice = Math.min(...allPrices);
+    const maxPrice = Math.max(...allPrices);
+    let posClass = 'middle', posLabel = '中間';
+    if (myPrice <= minPrice) { posClass = 'cheapest'; posLabel = '最安'; }
+    else if (myPrice >= maxPrice) { posClass = 'expensive'; posLabel = '高値'; }
+    html += `<div class="rivals-position"><span class="badge-position ${posClass}">${posLabel}</span></div>`;
+  }
+
+  // 各ライバル表示
+  rivals.forEach(r => {
+    // 価格差 = ライバル価格 - 自分の価格（マイナス=ライバルが安い→赤、プラス=自分が安い→緑）
+    const diff = (myPrice && r.currentPrice) ? r.currentPrice - myPrice : null;
+    const diffClass = diff !== null ? (diff > 0 ? 'positive' : diff < 0 ? 'negative' : '') : '';
+    const diffText = diff !== null ? `${diff > 0 ? '+' : ''}${diff.toLocaleString()}` : '-';
+    const shortAsin = r.asin ? r.asin.substring(0, 4) + '...' + r.asin.substring(7) : '';
+    html += `<div class="rival-item">`;
+    html += `<span class="rival-asin">${esc(shortAsin)}</span>`;
+    html += `<span class="rival-price">${r.currentPrice != null ? '¥' + r.currentPrice.toLocaleString() : '-'}</span>`;
+    html += `<span class="rival-diff ${diffClass}">${diffText}</span>`;
+    html += `<button class="rival-remove" onclick="removeRival('${p.asin}','${r.asin}')" title="削除">x</button>`;
+    html += `</div>`;
+  });
+
+  // 最安マッチボタン（ライバルが1件以上あり、かつライバルの最安が自分より安い場合）
+  if (rivals.length > 0) {
+    const rivalPrices = rivals.map(r => r.currentPrice).filter(v => v != null);
+    if (rivalPrices.length > 0) {
+      const lowestRival = Math.min(...rivalPrices);
+      if (myPrice == null || lowestRival < myPrice) {
+        html += `<button class="rival-match-btn" onclick="matchLowestRival('${p.asin}')" title="ライバル最安価格を出品価格に反映">最安マッチ ¥${lowestRival.toLocaleString()}</button>`;
+      }
+    }
+  }
+
+  html += `<button class="rival-add-btn" onclick="addRivalDialog('${p.asin}')">+ 追加</button>`;
+  html += '</div>';
+  return html;
+}
+
+// ライバル追加ダイアログ
+async function addRivalDialog(parentAsin) {
+  const rivalAsin = prompt('ライバル商品のASINを入力してください:');
+  if (!rivalAsin) return;
+  const cleaned = rivalAsin.trim().toUpperCase();
+  if (!/^[A-Z0-9]{10}$/.test(cleaned)) {
+    showToast('ASINは英数字10桁で入力してください', 'error');
+    return;
+  }
+  // 自分自身は追加不可
+  if (cleaned === parentAsin) {
+    showToast('自分自身をライバルに追加できません', 'error');
+    return;
+  }
+  const p = products.find(x => x.asin === parentAsin);
+  if (!p) return;
+  if (!p.rivals) p.rivals = [];
+  // 重複チェック
+  if (p.rivals.some(r => r.asin === cleaned)) {
+    showToast('既に登録済みのASINです', 'error');
+    return;
+  }
+
+  showLoading(true);
+  const keepaData = await fetchFromKeepa(cleaned);
+  showLoading(false);
+  if (keepaData.error) {
+    showToast(keepaData.error, 'error');
+    return;
+  }
+  // ライバルの現在価格を取得（カート価格 or 新品最安）
+  const rivalPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? null;
+  p.rivals.push({
+    asin: cleaned,
+    title: keepaData.title || '',
+    currentPrice: rivalPrice,
+    lastUpdated: new Date().toISOString()
+  });
+  saveProductsToStorage();
+  showToast(`ライバル ${cleaned} を追加しました`);
+  renderAll();
+}
+
+// ライバル削除
+function removeRival(parentAsin, rivalAsin) {
+  if (!confirm(`ライバル ${rivalAsin} を削除しますか？`)) return;
+  const p = products.find(x => x.asin === parentAsin);
+  if (!p || !p.rivals) return;
+  p.rivals = p.rivals.filter(r => r.asin !== rivalAsin);
+  saveProductsToStorage();
+  showToast('ライバルを削除しました');
+  renderAll();
+}
+
+// 最安マッチ: ライバルの最安価格を出品価格に反映
+function matchLowestRival(parentAsin) {
+  const p = products.find(x => x.asin === parentAsin);
+  if (!p || !p.rivals || !p.rivals.length) return;
+  const rivalPrices = p.rivals.map(r => r.currentPrice).filter(v => v != null);
+  if (!rivalPrices.length) return;
+  const lowestPrice = Math.min(...rivalPrices);
+  p.listingPrice = lowestPrice;
+  // 下限価格も連動更新
+  const pct = p.lowerPricePercent || (appSettings.csvDefaults?.priceReductionEnabled ? appSettings.csvDefaults.priceReductionPercent : null);
+  const enabled = p.priceReductionEnabled || appSettings.csvDefaults?.priceReductionEnabled;
+  if (enabled && pct) {
+    p.lowerPrice = Math.round(lowestPrice * (1 - pct / 100));
+  }
+  saveProductsToStorage();
+  showToast(`出品価格を ¥${lowestPrice.toLocaleString()} に更新しました`);
+  renderAll();
+}
+
+// 単一商品のライバル価格更新
+async function updateRivalsForProduct(p) {
+  if (!p.rivals || !p.rivals.length) return 0;
+  let updated = 0;
+  for (const rival of p.rivals) {
+    try {
+      const keepaData = await fetchFromKeepa(rival.asin);
+      if (keepaData.error) continue;
+      rival.currentPrice = keepaData.currentBuyBoxPrice ?? keepaData.currentNewPrice ?? rival.currentPrice;
+      rival.title = keepaData.title || rival.title;
+      rival.lastUpdated = new Date().toISOString();
+      updated++;
+    } catch {
+      // エラー時はスキップ
+    }
+  }
+  return updated;
 }
 
 // === 詳細モーダル ===
@@ -975,12 +1128,28 @@ async function triggerUpdateAll() {
     if ((i+1) % 10 === 0) { saveProductsToStorage(); await new Promise(r => setTimeout(r, 2000)); }
   }
   saveProductsToStorage();
+  // ライバル価格も更新
+  const rivalsTotal = products.reduce((sum, p) => sum + (p.rivals ? p.rivals.length : 0), 0);
+  let rivalsOk = 0;
+  if (rivalsTotal > 0) {
+    statusEl.textContent = 'ライバル価格更新中...';
+    for (let i = 0; i < products.length; i++) {
+      if (products[i].rivals && products[i].rivals.length) {
+        statusEl.textContent = `ライバル更新 ${i+1}/${products.length}...`;
+        const cnt = await updateRivalsForProduct(products[i]);
+        rivalsOk += cnt;
+        if ((i+1) % 5 === 0) { saveProductsToStorage(); await new Promise(r => setTimeout(r, 1000)); }
+      }
+    }
+    saveProductsToStorage();
+  }
   updateRunning = false;
   btn.classList.remove('running');
   document.getElementById('updateLabel').textContent = '全商品更新';
-  statusEl.textContent = `完了: ${ok}成功${err?'/'+err+'失敗':''}`;
+  const rivalMsg = rivalsOk > 0 ? `, ライバル${rivalsOk}件` : '';
+  statusEl.textContent = `完了: ${ok}成功${err?'/'+err+'失敗':''}${rivalMsg}`;
   statusEl.className = 'update-status' + (err ? ' has-error' : '');
-  showToast(`更新完了: 成功${ok}件${err?', 失敗'+err+'件':''}`, err ? 'error' : 'success');
+  showToast(`更新完了: 成功${ok}件${err?', 失敗'+err+'件':''}${rivalMsg}`, err ? 'error' : 'success');
   renderAll();
 }
 

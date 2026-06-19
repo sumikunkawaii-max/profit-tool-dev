@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/icon?family=Material+Symbols+Outlined" rel="stylesheet">
-  <link rel="stylesheet" href="style.css?v=4">
+  <link rel="stylesheet" href="style.css?v=6">
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#1a73e8">
   <link rel="icon" href="icon-192.svg">
@@ -132,16 +132,18 @@
   </div>
 
   <script>
-    // 古いService Workerのキャッシュを強制クリア
+    // Service Worker完全削除+キャッシュ全クリア
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.getRegistrations().then(regs => {
         regs.forEach(r => r.unregister());
       });
-      caches.keys().then(keys => {
-        keys.forEach(k => caches.delete(k));
-      });
+      if ('caches' in window) {
+        caches.keys().then(keys => {
+          keys.forEach(k => caches.delete(k));
+        });
+      }
     }
   </script>
-  <script src="app.js?v=4"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
