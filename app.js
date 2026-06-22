@@ -1319,13 +1319,6 @@ function quickBackup() {
   showToast('バックアップを保存しました');
 }
 
-// データがある場合、タブを閉じる時に警告
-window.addEventListener('beforeunload', (e) => {
-  if (products.length > 0) {
-    e.preventDefault();
-    e.returnValue = '';
-  }
-});
 
 // PWAインストール促進
 let deferredPrompt = null;
