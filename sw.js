@@ -1,4 +1,4 @@
-const CACHE_NAME = 'profit-tool-v10';
+const CACHE_NAME = 'sedori-profit-v11';
 const ASSETS = [
   './',
   './index.html',

@@ -1,7 +1,7 @@
 {
-  "name": "利益商品管理ツール",
-  "short_name": "利益管理",
-  "description": "Amazon商品のKeepaデータ管理・利益計算ツール",
+  "name": "Amazon せどり管理ツール",
+  "short_name": "せどり管理",
+  "description": "Amazon せどりの利益管理・セラーリサーチ統合ツール",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
